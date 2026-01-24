@@ -74,7 +74,8 @@
             scannerActive: false,
             html5QrCode: null,
             modal: { show: false, title: '', message: '', onConfirm: null },
-            qrModal: { show: false, student: null }
+            qrModal: { show: false, student: null },
+            lastScanned: { text: '', time: 0 } // Untuk debouncing scanner
         };
 
         // --- 3. UI HELPERS ---
@@ -310,7 +311,7 @@
             document.body.removeChild(tempDiv); const content = await zip.generateAsync({type:"blob"}); saveAs(content, "Database_QR_Siswa.zip"); window.showNotif("Selesai");
         };
 
-        // --- 9. SCANNER (RESTORED LOGIC) ---
+        // --- 9. SCANNER (OPTIMIZED CONTINUOUS SCANNING) ---
         window.startScanner = async () => {
             const container = document.getElementById('reader');
             if (!container || window.appState.isScannerStarting) return;
@@ -342,6 +343,12 @@
                     { facingMode: "environment" }, 
                     config, 
                     async (text) => {
+                        const now = Date.now();
+                        // Debounce: Jangan scan teks yang sama dalam waktu 3 detik
+                        if (window.appState.lastScanned.text === text && (now - window.appState.lastScanned.time) < 3000) {
+                            return; 
+                        }
+
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         if (student) {
                             const isAlreadyPresent = window.appState.attendance.some(a => 
@@ -351,18 +358,26 @@
                             );
 
                             if (!isAlreadyPresent) {
+                                window.appState.lastScanned = { text, time: now };
                                 await window.markAttendance(student.id, 'Hadir');
-                                window.showNotif(`Hadir: ${student.nama_siswa}`);
+                                window.showNotif(`Presensi Berhasil: ${student.nama_siswa}`);
                                 if (navigator.vibrate) navigator.vibrate(100);
+                                // Tidak mematikan scanner, tetap lanjut untuk siswa berikutnya
+                            } else {
+                                // Tetap update timestamp terakhir agar tidak muncul notif berulang untuk siswa yang sudah hadir
+                                window.appState.lastScanned = { text, time: now };
+                                window.showNotif(`${student.nama_siswa} sudah hadir`, "warning");
                             }
                         } else {
-                            window.showNotif("Siswa tidak ditemukan", "error");
+                            // Siswa tidak dikenal
+                            window.appState.lastScanned = { text, time: now };
+                            window.showNotif("QR Code tidak terdaftar di database!", "error");
                         }
                     }
                 );
             } catch (err) { 
                 console.error("Camera Error:", err);
-                window.showNotif("Gagal akses kamera.", "error"); 
+                window.showNotif("Gagal akses kamera. Pastikan izin diberikan.", "error"); 
                 window.appState.scannerActive = false;
             } finally { 
                 window.appState.isScannerStarting = false; 
@@ -862,11 +877,67 @@
                 <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div></div>
                 <div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div>
                 <div class="space-y-2 border-t pt-4 text-left text-left text-left text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left text-left text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left text-left text-left text-left text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left text-left">KLS ${k}</span></label>`).join('')}</div></div>
-                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left text-left text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
+                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left text-left text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
             
-            if (v === 'scanner') return `<div class="max-w-md mx-auto animate-fadeIn text-center"><div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full text-center text-center"><div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center"></div><p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p><button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Reset Kamera</button></div></div>`;
+            if (v === 'scanner') return `<div class="max-w-md mx-auto animate-fadeIn text-center"><div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full text-center text-center"><div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center"></div><p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p><button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Aktifkan Kamera</button></div></div>`;
             
-            if (v === 'info') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left h-full overflow-y-auto custom-scroll pr-1 pb-10 text-left"><div class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-10 text-left"><div><h4 class="font-black text-2xl uppercase tracking-tighter mb-6 text-blue-600 leading-none text-left">Panduan Jurnal Guru</h4><p class="text-sm text-slate-500 font-medium leading-relaxed text-left">Jurnal Guru PRO adalah solusi digital untuk manajemen administrasi kelas yang efisien dan aman.</p></div><div><h4 class="font-black text-xl uppercase mb-6 text-slate-800 leading-none text-left">Tutorial Singkat</h4><ol class="space-y-4 text-xs font-black text-slate-500 text-left"><li>1. Input data siswa dan mata pelajaran per tingkatan kelas.</li><li>2. Gunakan pemindai QR untuk presensi instan.</li><li>3. Isi Jurnal harian; data presensi otomatis terintegrasi.</li><li>4. Ekspor laporan bulanan atau semesteran ke PDF atau CSV.</li></ol></div><div><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Media Sosial</h4><div class="flex justify-center gap-6 text-center text-center"><a href="https://instagram.com/mohdrizkkyy" target="_blank" class="text-rose-500 text-3xl hover:scale-110 transition-all text-center"><i class="fa-brands fa-instagram"></i></a><a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="text-slate-800 text-3xl hover:scale-110 transition-all text-center"><i class="fa-brands fa-tiktok"></i></a><a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="text-rose-600 text-3xl hover:scale-110 transition-all text-center"><i class="fa-brands fa-youtube"></i></a></div></div><div class="pt-8 border-t border-slate-100 text-center shrink-0 text-center"><p class="text-[10px] font-black uppercase text-slate-400 mb-2 leading-none text-center">Dikembangkan Oleh:</p><h5 class="text-lg font-black text-slate-800 uppercase tracking-tighter leading-none text-center">Mohamad Rizki, S.Pd.,Gr.</h5><p class="text-[9px] font-black text-blue-600 uppercase mt-4 leading-none text-center">@mohdrizkkyy</p></div></div></div>`;
+            if (v === 'info') return `<div class="max-w-3xl mx-auto animate-fadeIn h-full overflow-y-auto custom-scroll pr-1 pb-16">
+                <div class="bg-white rounded-[3.5rem] p-10 border shadow-sm space-y-12">
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-blue-600 text-white rounded-[2rem] flex items-center justify-center text-3xl mx-auto mb-6 shadow-xl animate-bounce">
+                            <i class="fa-solid fa-graduation-cap"></i>
+                        </div>
+                        <h4 class="font-black text-3xl uppercase tracking-tighter mb-2 text-slate-800 leading-none">Jurnal Guru <span class="text-blue-600">PRO</span></h4>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Transformasi Digital Administrasi Kelas</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
+                            <h5 class="font-black uppercase text-blue-600 text-xs mb-4 tracking-widest">Misi Kami</h5>
+                            <p class="text-sm text-slate-600 font-medium leading-relaxed">Memberdayakan pendidik dengan teknologi otomasi yang cerdas, mengurangi beban administratif agar guru dapat fokus sepenuhnya pada kualitas pengajaran dan interaksi dengan siswa.</p>
+                        </div>
+                        <div class="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-lg">
+                            <h5 class="font-black uppercase text-blue-100 text-xs mb-4 tracking-widest">Versi Sistem</h5>
+                            <div class="flex items-center gap-4 mb-2">
+                                <span class="text-3xl font-black">2.5</span>
+                                <span class="bg-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase">Stable Build</span>
+                            </div>
+                            <p class="text-white/70 text-[10px] font-bold uppercase tracking-tight">Pembaruan: Jan 2026 - Cloud Sync Enabled</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        <h5 class="font-black uppercase text-slate-800 text-center text-xs tracking-[0.3em]">Alur Kerja Digital</h5>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            ${[
+                                {icon: 'fa-database', t: 'Data Hub', d: 'Kelola database siswa & mapel terpusat.'},
+                                {icon: 'fa-qrcode', t: 'Auto Scan', d: 'Presensi instan dengan pemindaian QR.'},
+                                {icon: 'fa-file-signature', t: 'Smart Journal', d: 'Integrasi otomatis kehadiran ke jurnal.'},
+                                {icon: 'fa-file-export', t: 'One-Click Report', d: 'Ekspor laporan PDF/CSV siap cetak.'}
+                            ].map(item => `
+                                <div class="text-center p-6 bg-white border border-slate-100 rounded-[2rem] hover:shadow-md transition-all">
+                                    <div class="text-blue-600 text-xl mb-3"><i class="fa-solid ${item.icon}"></i></div>
+                                    <h6 class="font-black text-[10px] uppercase mb-1">${item.t}</h6>
+                                    <p class="text-[9px] text-slate-400 font-bold leading-tight uppercase">${item.d}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="pt-10 border-t border-slate-100 flex flex-col items-center">
+                        <p class="text-[9px] font-black uppercase text-slate-400 mb-6 tracking-widest">Terhubung Dengan Pengembang</p>
+                        <div class="flex justify-center gap-4 mb-10">
+                            <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="w-14 h-14 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center text-2xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"><i class="fa-brands fa-instagram"></i></a>
+                            <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="w-14 h-14 bg-slate-100 text-slate-800 rounded-2xl flex items-center justify-center text-2xl hover:bg-slate-800 hover:text-white transition-all shadow-sm"><i class="fa-brands fa-tiktok"></i></a>
+                            <a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-2xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><i class="fa-brands fa-youtube"></i></a>
+                        </div>
+                        <div class="text-center">
+                            <h5 class="text-sm font-black text-slate-800 uppercase tracking-tighter">Mohamad Rizki, S.Pd.,Gr.</h5>
+                            <p class="text-[9px] font-black text-blue-600 uppercase mt-1">Innovative Educator & System Architect</p>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
             return ``;
         };
 
