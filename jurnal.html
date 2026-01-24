@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jurnal Guru - Digitalisasi Administrasi</title>
+    
+    <!-- CSS & Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    
+    <!-- Libraries -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeFirestore, collection, doc, setDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 1. FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDU04V8KpMbBc28-bpP9PM_LQP06Kx9Cwk",
+            authDomain: "remedial-tracker.firebaseapp.com",
+            projectId: "remedial-tracker",
+            storageBucket: "remedial-tracker.firebasestorage.app",
+            messagingSenderId: "720679266176",
+            appId: "1:720679266176:web:95b19d6eb06cf6cd9c4365"
+        };
+        
+        const appId = 'jurnal-guru-pro'; 
+        const hubUrl = "https://sites.google.com/guru.sd.belajar.id/reezapps/home";
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+        // --- 2. GLOBAL STATE ---
+        window.appState = {
+            currentView: 'dashboard',
+            user: null,
+            teacherId: null, 
+            loading: true,
+            isAuthenticated: false,
+            isLoggingIn: false,
+            isScannerStarting: false,
+            loginError: '',
+            settings: { 
+                nama_guru: '', nip_guru: '', nama_sekolah: '', nama_kepsek: '', nip_kepsek: '', lokasi: '', semester: '1', tahun_ajaran: '2024/2025', kelas_diampu: [] 
+            },
+            students: [],
+            journals: [],
+            attendance: [], 
+            mapels: [],
+            holidays: [],
+            selectedKelas: '', 
+            selectedMapel: '',
+            selectedDate: new Date().toISOString().split('T')[0],
+            reportMonth: new Date().toISOString().slice(0, 7),
+            historyMonth: new Date().toISOString().slice(0, 7),
+            reportSearch: '',
+            attendanceSearch: '',
+            reportViewType: 'rekap', 
+            lastFocusedId: null,
+            lastCaretPos: 0,
+            sidebarCollapsed: false,
+            mobileMenuOpen: false,
+            scannerActive: false,
+            html5QrCode: null,
+            modal: { show: false, title: '', message: '', onConfirm: null },
+            qrModal: { show: false, student: null }
+        };
+
+        // --- 3. UI HELPERS ---
+        window.showNotif = (msg, tipe = 'success') => {
+            const wadah = document.getElementById('notif-anchor');
+            if (!wadah) return;
+            const kotak = document.createElement('div');
+            kotak.className = `bg-white border-l-4 ${tipe === 'error' ? 'border-rose-500 text-rose-600' : 'border-blue-600 text-blue-600'} shadow-xl rounded-2xl p-4 animate-slideDown flex items-center gap-3 pointer-events-auto mb-2 w-72 z-[9999] text-left transition-all`;
+            kotak.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span class="text-[10px] font-black uppercase tracking-tight">${msg}</span>`;
+            wadah.appendChild(kotak);
+            setTimeout(() => { kotak.style.opacity='0'; setTimeout(()=>kotak.remove(), 400); }, 3000);
+        };
+
+        window.confirmAction = (title, message, onConfirm) => {
+            window.appState.modal = { show: true, title, message, onConfirm };
+            window.renderApp();
+        };
+
+        // --- 4. FIREBASE LISTENERS ---
+        window.initDataListeners = () => {
+            if (!auth.currentUser || !window.appState.teacherId) return;
+            const tId = window.appState.teacherId;
+            const userRef = (col) => collection(db, 'artifacts', appId, 'users', tId, col);
+            const profileRef = doc(db, 'artifacts', appId, 'users', tId, 'settings', 'profile');
+            
+            onSnapshot(profileRef, (snap) => { 
+                if (snap.exists()) { 
+                    window.appState.settings = snap.data(); 
+                    if (!window.appState.selectedKelas && window.appState.settings.kelas_diampu?.length > 0) {
+                        window.appState.selectedKelas = window.appState.settings.kelas_diampu[0];
+                    } else if (!window.appState.selectedKelas) {
+                        window.appState.selectedKelas = '1';
+                    }
+                    window.renderApp(); 
+                } 
+            });
+            onSnapshot(userRef('students'), (snap) => { window.appState.students = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
+            onSnapshot(userRef('journals'), (snap) => { window.appState.journals = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
+            onSnapshot(userRef('attendance'), (snap) => { window.appState.attendance = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
+            onSnapshot(userRef('mapels'), (snap) => { window.appState.mapels = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
+            onSnapshot(userRef('holidays'), (snap) => { window.appState.holidays = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
+        };
+
+        // --- 5. AUTH ---
+        window.handlePinLogin = async (e) => {
+            e.preventDefault();
+            const pinValue = e.target.pin.value;
+            window.appState.isLoggingIn = true;
+            window.renderApp();
+            try {
+                const securityRef = collection(db, 'artifacts', appId, 'public', 'data', 'security');
+                const snapshot = await getDocs(securityRef);
+                let foundTeacherId = null;
+                snapshot.forEach(doc => { if (doc.data().pin?.toString() === pinValue) foundTeacherId = doc.id; });
+                if (foundTeacherId) {
+                    window.appState.teacherId = foundTeacherId;
+                    window.appState.isAuthenticated = true;
+                    window.initDataListeners();
+                    window.showNotif("Login Berhasil");
+                    await window.setView('dashboard');
+                } else { window.showNotif("Kode PIN Tidak Terdaftar!", "error"); }
+            } catch (err) { window.appState.loginError = "Gagal Verifikasi"; }
+            finally { window.appState.isLoggingIn = false; window.renderApp(); }
+        };
+
+        window.handleLogout = async () => {
+            await window.stopScanner();
+            window.appState.isAuthenticated = false;
+            window.appState.teacherId = null;
+            window.appState.loginError = '';
+            window.appState.selectedKelas = '';
+            window.renderApp();
+            setTimeout(() => {
+                const pinInput = document.querySelector('input[name="pin"]');
+                if (pinInput) pinInput.value = '';
+            }, 100);
+            window.open(hubUrl, '_blank');
+        };
+
+        window.toggleSemester = async () => {
+            const newSem = window.appState.settings.semester === '1' ? '2' : '1';
+            await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), { ...window.appState.settings, semester: newSem });
+            window.showNotif(`Semester diubah ke ${newSem}`);
+        };
+
+        // --- 6. DATA ACTIONS ---
+        const getColRef = (col) => collection(db, 'artifacts', appId, 'users', window.appState.teacherId, col);
+
+        window.deleteDocData = (col, id) => {
+            window.confirmAction("Hapus Data", "Data akan dihapus permanen. Lanjutkan?", async () => {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, col, id));
+                window.showNotif("Terhapus");
+                window.appState.modal.show = false; window.renderApp();
+            });
+        };
+
+        window.deleteTP = (mapelId, tpIdx) => {
+            window.confirmAction("Hapus TP", "TP ini akan dihapus. Lanjutkan?", async () => {
+                const mapel = window.appState.mapels.find(m => m.id === mapelId);
+                if (!mapel) return;
+                const newTP = [...mapel.tp];
+                newTP.splice(tpIdx, 1);
+                await updateDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'mapels', mapelId), { tp: newTP });
+                window.showNotif("TP Terhapus");
+                window.appState.modal.show = false; window.renderApp();
+            });
+        };
+
+        window.handleBulkStudents = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const grade = formData.get('grade');
+            const namesText = formData.get('names');
+            let names = [...new Set(namesText.split('\n').map(n => n.trim()).filter(n => n.length > 0))];
+            const existing = window.appState.students.filter(s => s.kelas === grade).map(s => s.nama_siswa.toLowerCase());
+            const newNames = names.filter(n => !existing.includes(n.toLowerCase()));
+            if (newNames.length === 0) { window.showNotif("Nama sudah ada", "error"); return; }
+            const batch = writeBatch(db);
+            newNames.forEach(nama => { const newDoc = doc(getColRef('students')); batch.set(newDoc, { nama_siswa: nama, kelas: grade, createdAt: new Date().toISOString() }); });
+            await batch.commit(); e.target.reset(); window.showNotif(`${newNames.length} Siswa Tersimpan`);
+        };
+
+        window.handleSaveMapel = async (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target).entries());
+            const isDup = window.appState.mapels.some(m => m.kelas === data.kelas && m.nama.toLowerCase() === data.nama_mapel.toLowerCase());
+            if (isDup) { window.showNotif("Mapel sudah ada", "error"); return; }
+            await addDoc(getColRef('mapels'), { kelas: data.kelas, nama: data.nama_mapel, tp: data.tujuan_pembelajaran.split('\n').filter(t => t.trim().length > 0) });
+            e.target.reset(); window.showNotif("Mapel Tersimpan");
+        };
+
+        window.handleSaveJournal = async (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target).entries());
+            const isDup = window.appState.journals.some(j => j.tanggal === data.tanggal && j.kelas_mengajar === data.kelas_mengajar && j.jam_ke === data.jam_ke);
+            if (isDup) { window.showNotif("Jurnal jam ini sudah ada!", "error"); return; }
+            const isHoliday = window.appState.holidays.find(h => h.tanggal === data.tanggal);
+            if (isHoliday && !data.is_kerja_khusus) { window.showNotif("Hari Libur!", "error"); return; }
+            
+            data.createdAt = new Date().toISOString(); 
+            data.semester = window.appState.settings.semester;
+            
+            const classStudents = window.appState.students.filter(s => String(s.kelas) === String(data.kelas_mengajar));
+            const attToday = window.appState.attendance.filter(a => a.date === data.tanggal && String(a.studentClass) === String(data.kelas_mengajar));
+            
+            data.hadir = attToday.filter(a => a.status === 'Hadir').length; 
+            data.izin = attToday.filter(a => a.status === 'Izin').length;
+            data.sakit = attToday.filter(a => a.status === 'Sakit').length; 
+            data.alpa = classStudents.length - (data.hadir + data.izin + data.sakit);
+            
+            await addDoc(getColRef('journals'), data); 
+            window.showNotif("Jurnal Tersimpan"); 
+            window.setView('history');
+        };
+
+        window.handleSaveHoliday = async (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target).entries());
+            if (window.appState.holidays.some(h => h.tanggal === data.tanggal)) { window.showNotif("Tanggal sudah ada", "error"); return; }
+            await addDoc(getColRef('holidays'), data); e.target.reset(); window.showNotif("Libur Ditambahkan");
+        };
+
+        window.handleSaveSettings = async (e) => { 
+            e.preventDefault(); 
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries()); 
+            data.kelas_diampu = formData.getAll('kelas_diampu');
+            await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), data); 
+            window.showNotif("Profil Disimpan"); 
+        };
+
+        // --- 7. DANGER ZONE ---
+        window.handlePromotion = () => {
+            window.confirmAction("Naik Kelas", "Siswa akan naik tingkat. Data KELAS 6 akan diunduh otomatis lalu dihapus. Lanjutkan?", async () => {
+                const class6 = window.appState.students.filter(s => s.kelas === "6");
+                if (class6.length > 0) {
+                    let csv = "Nama,Kelas,H,I,S,A\n";
+                    class6.forEach(s => { const att = window.appState.attendance.filter(a => a.studentId === s.id); csv += `${s.nama_siswa},6,${att.filter(x=>x.status==='Hadir').length},${att.filter(x=>x.status==='Izin').length},${att.filter(x=>x.status==='Sakit').length},${att.filter(x=>x.status==='Alpa').length}\n`; });
+                    saveAs(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Arsip_Lulusan_Kelas6.csv`);
+                }
+                const batch = writeBatch(db);
+                window.appState.students.forEach(s => { const sRef = doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'students', s.id); if (s.kelas === "6") batch.delete(sRef); else batch.update(sRef, { kelas: String(Number(s.kelas) + 1) }); });
+                await batch.commit(); window.showNotif("Kenaikan Kelas Berhasil"); window.appState.modal.show = false; window.renderApp();
+            });
+        };
+
+        window.handleClearData = () => {
+            window.confirmAction("BERSIHKAN DATABASE", "Seluruh data akun Anda akan dihapus permanen! Lanjutkan?", async () => {
+                const collections = ['students', 'journals', 'attendance', 'mapels', 'holidays'];
+                for (const colName of collections) {
+                    const snap = await getDocs(getColRef(colName));
+                    const batch = writeBatch(db);
+                    snap.forEach(d => batch.delete(d.ref));
+                    await batch.commit();
+                }
+                window.showNotif("Database Bersih"); window.appState.modal.show = false; window.renderApp();
+            });
+        };
+
+        // --- 8. QR CODE VIEW ---
+        window.viewQR = (student) => {
+            window.appState.qrModal = { show: true, student };
+            window.renderApp();
+            setTimeout(() => {
+                const container = document.getElementById('qr-canvas-render');
+                if (container) {
+                    container.innerHTML = ""; 
+                    new QRCode(container, { text: student.nama_siswa, width: 256, height: 256, colorDark : "#1e293b", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
+                }
+            }, 300);
+        };
+
+        window.downloadQR = (name) => {
+            const container = document.getElementById('qr-canvas-render');
+            const canvas = container.querySelector('canvas');
+            const img = container.querySelector('img');
+            let src = canvas ? canvas.toDataURL("image/png") : (img ? img.src : "");
+            if (src) { const link = document.createElement('a'); link.href = src; link.download = `QR_${name.replace(/\s+/g, '_')}.png`; link.click(); } 
+            else window.showNotif("Gagal unduh QR", "error");
+        };
+
+        window.downloadBulkQR = async () => {
+            const zip = new JSZip(); const folder = zip.folder("QR_Siswa_Database");
+            window.showNotif("Memproses ZIP...", "warning");
+            const tempDiv = document.createElement('div'); tempDiv.style.position = "absolute"; tempDiv.style.left = "-9999px"; document.body.appendChild(tempDiv);
+            for (const s of window.appState.students) {
+                tempDiv.innerHTML = ""; new QRCode(tempDiv, { text: s.nama_siswa, width: 300, height: 300 });
+                await new Promise(r => setTimeout(r, 200)); 
+                const canvas = tempDiv.querySelector('canvas'); const img = tempDiv.querySelector('img');
+                let src = canvas ? canvas.toDataURL("image/png") : (img ? img.src : null);
+                if (src && src.includes("base64,")) folder.file(`KLS${s.kelas}_${s.nama_siswa.replace(/\s+/g, '_')}.png`, src.split(',')[1], {base64: true});
+            }
+            document.body.removeChild(tempDiv); const content = await zip.generateAsync({type:"blob"}); saveAs(content, "Database_QR_Siswa.zip"); window.showNotif("Selesai");
+        };
+
+        // --- 9. SCANNER (RESTORED LOGIC) ---
+        window.startScanner = async () => {
+            const container = document.getElementById('reader');
+            if (!container || window.appState.isScannerStarting) return;
+
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                window.showNotif("HTTPS diperlukan untuk akses kamera.", "error");
+                return;
+            }
+
+            window.appState.isScannerStarting = true;
+            try {
+                await window.stopScanner();
+                window.appState.html5QrCode = new window.Html5Qrcode("reader");
+                
+                const config = { 
+                    fps: 10, 
+                    qrbox: (viewfinderWidth, viewfinderHeight) => {
+                        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                        const qrboxSize = Math.floor(minEdge * 0.7);
+                        return { width: qrboxSize, height: qrboxSize };
+                    },
+                    aspectRatio: 1.0,
+                    showTorchButtonIfSupported: true
+                };
+                
+                window.appState.scannerActive = true; 
+
+                await window.appState.html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    config, 
+                    async (text) => {
+                        const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
+                        if (student) {
+                            const isAlreadyPresent = window.appState.attendance.some(a => 
+                                a.studentId === student.id && 
+                                a.date === window.appState.selectedDate && 
+                                a.status === 'Hadir'
+                            );
+
+                            if (!isAlreadyPresent) {
+                                await window.markAttendance(student.id, 'Hadir');
+                                window.showNotif(`Hadir: ${student.nama_siswa}`);
+                                if (navigator.vibrate) navigator.vibrate(100);
+                            }
+                        } else {
+                            window.showNotif("Siswa tidak ditemukan", "error");
+                        }
+                    }
+                );
+            } catch (err) { 
+                console.error("Camera Error:", err);
+                window.showNotif("Gagal akses kamera.", "error"); 
+                window.appState.scannerActive = false;
+            } finally { 
+                window.appState.isScannerStarting = false; 
+            }
+        };
+
+        window.stopScanner = async () => {
+            if (window.appState.html5QrCode) {
+                try { 
+                    if (window.appState.html5QrCode.isScanning) {
+                        await window.appState.html5QrCode.stop(); 
+                    }
+                    await window.appState.html5QrCode.clear(); 
+                } 
+                catch(e) { console.warn("Stop scanner warning:", e); } 
+                finally { 
+                    window.appState.html5QrCode = null; 
+                    window.appState.scannerActive = false; 
+                }
+            }
+        };
+
+        window.markAttendance = async (id, status = 'Hadir') => {
+            const today = window.appState.selectedDate;
+            const existing = window.appState.attendance.find(a => a.studentId === id && a.date === today);
+            const student = window.appState.students.find(s => s.id === id);
+            if (!student) return;
+            const data = { studentId: id, studentName: student.nama_siswa, studentClass: student.kelas, date: today, status, timestamp: new Date().toISOString(), semester: window.appState.settings.semester };
+            if (existing) await updateDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'attendance', existing.id), data);
+            else await addDoc(getColRef('attendance'), data);
+        };
+
+        window.markAllPresent = async (kelas) => {
+            const students = window.appState.students.filter(s => String(s.kelas) === String(kelas));
+            if (students.length === 0) return;
+            window.showNotif("Memproses Presensi Bulk...");
+            const batch = writeBatch(db);
+            const today = window.appState.selectedDate;
+            
+            for (const s of students) {
+                const existing = window.appState.attendance.find(a => a.studentId === s.id && a.date === today);
+                const data = { studentId: s.id, studentName: s.nama_siswa, studentClass: s.kelas, date: today, status: 'Hadir', timestamp: new Date().toISOString(), semester: window.appState.settings.semester };
+                if (existing) batch.update(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'attendance', existing.id), data);
+                else batch.set(doc(getColRef('attendance')), data);
+            }
+            await batch.commit();
+            window.showNotif("Semua Siswa Hadir");
+        };
+
+        // --- 10. EXPORTS ---
+        window.exportFormal = (type, format) => {
+            const curSem = window.appState.settings.semester; const sets = window.appState.settings;
+            const targetMonth = type === 'reports' ? window.appState.reportMonth : window.appState.historyMonth;
+            const viewType = window.appState.reportViewType;
+            
+            if (format === 'csv') {
+                let csv = "";
+                if (type === 'journals') {
+                    csv = "Tgl,Jam,Mapel,Kls,TP,H,I,S,A,Catatan,Smt\n";
+                    window.appState.journals
+                        .filter(j => j.semester === curSem && j.tanggal.startsWith(targetMonth))
+                        .forEach(j => csv += `${j.tanggal},${j.jam_ke},${j.mata_pelajaran},${j.kelas_mengajar},"${j.tujuan_pembelajaran}",${j.hadir},${j.izin||0},${j.sakit||0},${j.alpa},"${j.catatan||''}",${j.semester}\n`);
+                } else if (type === 'reports') {
+                    if (viewType === 'rinci') {
+                        // Header Rinci
+                        const year = parseInt(targetMonth.split('-')[0]);
+                        const month = parseInt(targetMonth.split('-')[1]);
+                        const daysInMonth = new Date(year, month, 0).getDate();
+                        
+                        let header = "No,Nama,Kelas";
+                        for (let i = 1; i <= daysInMonth; i++) header += `,${i}`;
+                        header += ",H,I,S,A\n";
+                        csv = header;
+
+                        window.appState.students
+                            .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                            .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
+                            .forEach((s, idx) => {
+                                let row = `${idx+1},${s.nama_siswa},${s.kelas}`;
+                                const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(targetMonth));
+                                
+                                // Daily columns
+                                for (let i = 1; i <= daysInMonth; i++) {
+                                    const dayStr = `${targetMonth}-${String(i).padStart(2, '0')}`;
+                                    const attDay = attMonth.find(a => a.date === dayStr);
+                                    let statusChar = '-';
+                                    if (attDay?.status === 'Hadir') statusChar = 'H';
+                                    else if (attDay?.status === 'Izin') statusChar = 'I';
+                                    else if (attDay?.status === 'Sakit') statusChar = 'S';
+                                    else if (attDay?.status === 'Alpa') statusChar = 'A';
+                                    row += `,${statusChar}`;
+                                }
+                                
+                                // Summary columns
+                                row += `,${attMonth.filter(x=>x.status==='Hadir').length},${attMonth.filter(x=>x.status==='Izin').length},${attMonth.filter(x=>x.status==='Sakit').length},${attMonth.filter(x=>x.status==='Alpa').length}\n`;
+                                csv += row;
+                            });
+
+                    } else {
+                        // Rekap
+                        csv = "Nama,Kls,H,I,S,A,Smt\n";
+                        window.appState.students
+                            .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                            .forEach(s => { 
+                                const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem && a.date.startsWith(targetMonth)); 
+                                csv += `${s.nama_siswa},${s.kelas},${att.filter(x=>x.status==='Hadir').length},${att.filter(x=>x.status==='Izin').length},${att.filter(x=>x.status==='Sakit').length},${att.filter(x=>x.status==='Alpa').length},${curSem}\n`; 
+                            });
+                    }
+                }
+                saveAs(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Laporan_${targetMonth}_${type}_${viewType}.csv`);
+            } else {
+                // PDF Logic
+                const isLandscape = type === 'journals' || (type === 'reports' && viewType === 'rinci');
+                const { jsPDF } = window.jspdf; 
+                const docPdf = new jsPDF(isLandscape ? 'l' : 'p', 'mm', 'a4');
+                
+                // Header PDF
+                docPdf.setFontSize(14); 
+                docPdf.setFont("helvetica", "bold"); 
+                const pageWidth = docPdf.internal.pageSize.getWidth();
+                docPdf.text(sets.nama_sekolah.toUpperCase() || "JURNAL GURU", pageWidth / 2, 15, {align:'center'});
+                
+                docPdf.setFontSize(10); 
+                docPdf.text(`Laporan Bulan: ${targetMonth} | TA: ${sets.tahun_ajaran || '-'} | Kelas: ${window.appState.selectedKelas || '-'}`, pageWidth / 2, 22, {align:'center'});
+                
+                if (type === 'journals') {
+                    const body = window.appState.journals
+                        .filter(j => j.semester === curSem && j.tanggal.startsWith(targetMonth))
+                        .sort((a,b)=>b.tanggal.localeCompare(a.tanggal))
+                        .map((j, i) => [i+1, j.tanggal, j.jam_ke, j.kelas_mengajar, j.mata_pelajaran, j.tujuan_pembelajaran, j.hadir, j.izin||0, j.sakit||0, j.alpa, j.catatan||'-']);
+                    docPdf.autoTable({ head: [['No', 'Tgl', 'Jam', 'Kls', 'Mapel', 'TP', 'H', 'I', 'S', 'A', 'Catatan']], body, startY: 30, styles: {fontSize: 7} });
+                } else if (type === 'reports') {
+                    if (viewType === 'rinci') {
+                        // Rinci PDF (Landscape)
+                        const year = parseInt(targetMonth.split('-')[0]);
+                        const month = parseInt(targetMonth.split('-')[1]);
+                        const daysInMonth = new Date(year, month, 0).getDate();
+                        
+                        // Create dynamic header
+                        const dayHeaders = Array.from({length: daysInMonth}, (_, i) => String(i+1));
+                        const head = [['No', 'Nama', ...dayHeaders, 'H', 'I', 'S', 'A']];
+                        
+                        const body = window.appState.students
+                            .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                            .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
+                            .map((s, i) => { 
+                                const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(targetMonth)); 
+                                
+                                const dayCells = Array.from({length: daysInMonth}, (_, d) => {
+                                    const dayStr = `${targetMonth}-${String(d+1).padStart(2, '0')}`;
+                                    const attDay = attMonth.find(a => a.date === dayStr);
+                                    if (attDay?.status === 'Hadir') return 'H';
+                                    if (attDay?.status === 'Izin') return 'I';
+                                    if (attDay?.status === 'Sakit') return 'S';
+                                    if (attDay?.status === 'Alpa') return 'A';
+                                    return '';
+                                });
+
+                                return [
+                                    i+1, 
+                                    s.nama_siswa, 
+                                    ...dayCells,
+                                    attMonth.filter(x=>x.status==='Hadir').length,
+                                    attMonth.filter(x=>x.status==='Izin').length,
+                                    attMonth.filter(x=>x.status==='Sakit').length,
+                                    attMonth.filter(x=>x.status==='Alpa').length
+                                ]; 
+                            });
+                            
+                        docPdf.autoTable({ 
+                            head, 
+                            body, 
+                            startY: 30, 
+                            styles: { fontSize: 6, cellPadding: 1 },
+                            columnStyles: { 1: { cellWidth: 40 } } // Name column wider
+                        });
+
+                    } else {
+                        // Rekap PDF (Portrait)
+                        const body = window.appState.students
+                            .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                            .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
+                            .map((s, i) => { 
+                                const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem && a.date.startsWith(targetMonth)); 
+                                return [i+1, s.nama_siswa, s.kelas, att.filter(x=>x.status==='Hadir').length, att.filter(x=>x.status==='Izin').length, att.filter(x=>x.status==='Sakit').length, att.filter(x=>x.status==='Alpa').length]; 
+                            });
+                        docPdf.autoTable({ head: [['No', 'Nama Siswa', 'Kls', 'H', 'I', 'S', 'A']], body, startY: 30 });
+                    }
+                }
+
+                // Tanda Tangan
+                const finalY = docPdf.lastAutoTable.finalY + 15; 
+                
+                // Ensure signature block doesn't go off page
+                const pH = docPdf.internal.pageSize.getHeight();
+                let sigY = finalY;
+                if (sigY + 40 > pH) {
+                    docPdf.addPage();
+                    sigY = 20;
+                }
+
+                const pW = docPdf.internal.pageSize.getWidth();
+                
+                docPdf.setFont("helvetica", "normal"); docPdf.text("Mengetahui,", 30, sigY); docPdf.text("Kepala Sekolah", 30, sigY + 5); 
+                docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_kepsek || "...", 30, sigY + 25); docPdf.setFont("helvetica", "normal"); docPdf.text(`NIP. ${sets.nip_kepsek || "-"}`, 30, sigY + 30);
+                
+                const ttm = `${sets.lokasi || "................"}, ${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
+                docPdf.text(ttm, pW - 70, sigY); docPdf.text("Wali Kelas", pW - 70, sigY + 5); 
+                docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_guru || "...", pW - 70, sigY + 25); docPdf.setFont("helvetica", "normal"); docPdf.text(`NIP. ${sets.nip_guru || "-"}`, pW - 70, sigY + 30);
+                
+                docPdf.save(`Laporan_${targetMonth}_${type}_${viewType}.pdf`);
+            }
+        };
+
+        // --- 11. ROUTING & STATE PRESERVATION ---
+        window.setView = async (v) => { 
+            await window.stopScanner(); 
+            window.appState.currentView = v; 
+            window.appState.mobileMenuOpen = false; 
+            window.renderApp(); 
+            lucide.createIcons();
+            if (v === 'scanner') {
+                setTimeout(() => { if (document.getElementById('reader')) window.startScanner(); }, 500);
+            }
+            if (v === 'dashboard') setTimeout(() => window.initChart(), 500);
+            
+            // Focus and Caret Restoration for Search Inputs
+            if (window.appState.lastFocusedId) {
+                setTimeout(() => {
+                    const el = document.getElementById(window.appState.lastFocusedId);
+                    if (el) {
+                        el.focus();
+                        el.setSelectionRange(window.appState.lastCaretPos, window.appState.lastCaretPos);
+                    }
+                }, 10);
+            }
+        };
+
+        window.initChart = () => {
+            const canvas = document.getElementById('attendanceChart'); if (!canvas) return;
+            const dates = [...new Set(window.appState.attendance.filter(a=>a.semester===window.appState.settings.semester).map(a => a.date))].sort().slice(-7);
+            const dataHadir = dates.map(d => window.appState.attendance.filter(a => a.date === d && a.status === 'Hadir').length);
+            if (window.myChart) window.myChart.destroy();
+            window.myChart = new Chart(canvas.getContext('2d'), { type: 'bar', data: { labels: dates, datasets: [{ label: 'Jumlah Hadir', data: dataHadir, backgroundColor: '#2563eb', borderRadius: 8 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
+        };
+
+        window.renderNavItem = (view, icon, label) => {
+            const active = window.appState.currentView === view; const collapsed = window.appState.sidebarCollapsed;
+            return `<button onclick="window.setView('${view}')" class="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'} w-full text-left outline-none border-none group">
+                <div class="w-6 text-center text-lg shrink-0"><i class="fa-solid ${icon}"></i></div>
+                <span class="text-[11px] font-black uppercase tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'} text-left">${label}</span>
+            </button>`;
+        };
+
+        window.handleSearchInput = (el, stateKey) => {
+            window.appState[stateKey] = el.value;
+            window.appState.lastFocusedId = el.id;
+            window.appState.lastCaretPos = el.selectionStart; 
+            window.renderApp();
+        };
+
+        window.renderApp = () => {
+            const root = document.getElementById('root');
+            if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Menghubungkan...</div>`; return; }
+            if (!window.appState.isAuthenticated) {
+                // Login Page Fix: Centered dots with matching tracking/indent
+                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-6 bg-slate-50"><div class="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Buka Sistem</button></form></div></div>`;
+                lucide.createIcons(); return;
+            }
+
+            const view = window.appState.currentView; const collapsed = window.appState.sidebarCollapsed;
+            root.innerHTML = `
+                <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden transition-all duration-500">
+                    <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none"><i class="fa-solid fa-bars"></i></button></header>
+                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 ${collapsed ? 'w-24' : 'w-64'} w-full shrink-0 z-50 h-full relative overflow-hidden">
+                        <div class="hidden md:flex items-center gap-4 px-6 py-10 relative overflow-hidden shrink-0 text-left">
+                            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"><i class="fa-solid fa-graduation-cap"></i></div>
+                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 scale-0' : 'opacity-100 scale-100'}">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
+                            <button onclick="window.appState.sidebarCollapsed = !window.appState.sidebarCollapsed; window.renderApp();" class="absolute top-10 -right-2 w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-600 shadow-lg transition-all z-[110] outline-none">
+                                <i class="fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-[10px]"></i>
+                            </button>
+                        </div>
+                        <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10">
+                            ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
+                            ${window.renderNavItem('scanner', 'fa-qrcode', 'QR Presensi')}
+                            ${window.renderNavItem('input', 'fa-pen-to-square', 'Isi Jurnal')}
+                            ${window.renderNavItem('mapel', 'fa-book-open', 'Mata Pelajaran')}
+                            ${window.renderNavItem('history', 'fa-clock-rotate-left', 'Riwayat')}
+                            ${window.renderNavItem('reports', 'fa-file-invoice', 'Laporan')}
+                            ${window.renderNavItem('students', 'fa-users', 'Database Siswa')}
+                            ${window.renderNavItem('holidays', 'fa-calendar-day', 'Hari Libur')}
+                            ${window.renderNavItem('settings', 'fa-gear', 'Pengaturan')}
+                            ${window.renderNavItem('info', 'fa-circle-info', 'Informasi')}
+                        </nav>
+                    </aside>
+                    <main class="flex-grow overflow-y-auto h-full custom-scroll relative bg-slate-50 flex flex-col text-left">
+                        <div class="max-w-6xl mx-auto w-full p-4 md:p-8 flex-grow flex flex-col h-full">
+                            <header class="mb-8 flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm text-left shrink-0">
+                                <div><h2 class="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-800 leading-none">${view}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2.5 md:px-4 rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 shadow-sm flex items-center justify-center gap-2"><i class="fa-solid fa-repeat"></i> <span class="hidden md:inline">Smt</span> ${window.appState.settings.semester}</button>
+                                    <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-10 h-10 md:w-auto md:px-5 md:py-2.5 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[10px] tracking-widest active:scale-95 shadow-sm text-center"><i class="fa-solid fa-right-from-bracket"></i> <span class="hidden md:inline">Keluar</span></button>
+                                </div>
+                            </header>
+                            <div id="view-container" class="flex-grow overflow-hidden">${window.renderCurrentView()}</div>
+                        </div>
+                    </main>
+
+                    ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8">${window.appState.modal.message}</p><div class="flex gap-3"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
+                    ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-10 max-w-xs w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 inline-block mb-8 min-w-[256px] min-h-[256px]"></div><div class="flex flex-col gap-2"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-download"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center">Tutup</button></div></div></div>` : ''}
+                </div>`;
+            lucide.createIcons(); if (view === 'dashboard') window.initChart();
+            
+            // Re-apply focus and selection range
+            if (window.appState.lastFocusedId) {
+                const el = document.getElementById(window.appState.lastFocusedId);
+                if (el) {
+                    el.focus();
+                    el.setSelectionRange(window.appState.lastCaretPos, window.appState.lastCaretPos);
+                }
+            }
+        };
+
+        window.renderCurrentView = () => {
+            const v = window.appState.currentView; const curSem = window.appState.settings.semester;
+            const diampu = window.appState.settings.kelas_diampu || [];
+
+            if (v === 'dashboard') return `<div class="space-y-8 animate-fadeIn text-left h-full overflow-y-auto custom-scroll"><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="md:col-span-2 bg-gradient-to-br from-blue-600 to-indigo-900 p-10 rounded-[3rem] text-white shadow-xl flex flex-col justify-center min-h-[220px]"><h1 class="text-3xl font-black mb-2 uppercase tracking-tighter">Halo, ${window.appState.settings.nama_guru || 'Guru'}!</h1><p class="opacity-70 text-[10px] font-bold uppercase tracking-widest mb-8">Administrasi Aktif: Semester ${curSem} (${curSem === '1' ? 'Ganjil' : 'Genap'})</p><div class="flex flex-wrap gap-2"><button onclick="window.setView('scanner')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-qrcode"></i> Scan QR</button><button onclick="window.setView('input')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-pen"></i> Jurnal</button></div></div><div class="bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col justify-center items-center text-center"><div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner"><i class="fa-solid fa-users"></i></div><h3 class="text-3xl font-black text-slate-800">${window.appState.students.length}</h3><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Siswa Aktif</p></div></div><div class="bg-white p-8 rounded-[3rem] border shadow-sm"><h4 class="text-[10px] font-black text-slate-400 uppercase mb-6 text-left">Tren Kehadiran Smt ${curSem}</h4><div class="h-64 relative w-full"><canvas id="attendanceChart"></canvas></div></div></div>`;
+            
+            if (v === 'input') {
+                const students = window.appState.students
+                    .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                    .filter(s => s.nama_siswa.toLowerCase().includes(window.appState.attendanceSearch.toLowerCase()));
+                const filteredMapels = window.appState.mapels.filter(m => String(m.kelas) === String(window.appState.selectedKelas));
+
+                return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left h-full overflow-hidden text-left">
+                    <form onsubmit="window.handleSaveJournal(event)" class="bg-white rounded-[3rem] p-8 border shadow-sm space-y-6 overflow-y-auto custom-scroll h-fit max-h-full">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Tanggal</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"></div>
+                            <div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Kelas</label><select name="kelas_mengajar" onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Jam Ke-</label><select name="jam_ke" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${[1,2,3,4,5,6,7,8].map(j => `<option value="${j}">Jam Ke-${j}</option>`).join('')}</select></div>
+                            <div class="flex items-end pb-3"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" class="w-4 h-4"><span class="text-[9px] font-black uppercase">Hari Kerja Khusus</span></label></div>
+                        </div>
+                        <select name="mata_pelajaran" onchange="window.appState.selectedMapel = this.value; window.renderApp();" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih Mapel...</option>${filteredMapels.map(m => `<option value="${m.nama}" ${window.appState.selectedMapel===m.nama?'selected':''}>${m.nama}</option>`).join('')}</select>
+                        <select onchange="document.getElementsByName('tujuan_pembelajaran')[0].value = this.value" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih TP Database...</option>${(filteredMapels.find(m => m.nama === window.appState.selectedMapel)?.tp || []).map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+                        <textarea name="tujuan_pembelajaran" placeholder="TP Manual..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[100px] border-none text-xs text-left"></textarea>
+                        <textarea name="catatan" placeholder="Catatan..." class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[60px] border-none text-xs text-left"></textarea>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Jurnal</button>
+                    </form>
+                    
+                    <div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col overflow-hidden max-h-full">
+                        <div class="flex items-center justify-between mb-4 shrink-0">
+                            <h4 class="font-black text-xl uppercase leading-none text-slate-800">Presensi</h4>
+                            <div class="flex gap-2">
+                                <button onclick="window.markAllPresent('${window.appState.selectedKelas}')" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tight shadow-sm text-center"><i class="fa-solid fa-check-double"></i> Hadir Semua</button>
+                                <button onclick="window.setView('scanner')" class="bg-slate-100 text-slate-800 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm text-center"><i class="fa-solid fa-qrcode"></i></button>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4 relative shrink-0">
+                            <input id="att-search-input" type="text" placeholder="Cari nama siswa..." value="${window.appState.attendanceSearch}" oninput="window.handleSearchInput(this, 'attendanceSearch')" class="w-full bg-slate-50 rounded-xl p-4 pr-10 font-black border-none outline-none text-xs text-left">
+                            <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm"></i>
+                        </div>
+
+                        <div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow">
+                            ${students.map(s => { const log = window.appState.attendance.find(a => a.studentId === s.id && a.date === window.appState.selectedDate); return `<div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border text-left"><span class="text-[10px] font-black uppercase text-slate-700 truncate w-1/3 text-left">${s.nama_siswa}</span><div class="flex gap-1"><button onclick="window.markAttendance('${s.id}', 'Hadir')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Hadir' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-300 border'}">H</button><button onclick="window.markAttendance('${s.id}', 'Izin')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Izin' ? 'bg-sky-400 text-white shadow-md' : 'bg-white text-slate-300 border'}">I</button><button onclick="window.markAttendance('${s.id}', 'Sakit')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Sakit' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">S</button><button onclick="window.markAttendance('${s.id}', 'Alpa')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Alpa' ? 'bg-rose-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">A</button></div></div>`}).join('') || '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase">Data Tidak Ditemukan</p>'}
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left h-full overflow-hidden"><div class="bg-white rounded-[3rem] p-8 border shadow-sm h-fit shrink-0"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Sinkron Database</button></form></div><div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col flex-grow overflow-hidden"><div class="flex justify-between items-center mb-6 shrink-0"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center">ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1"><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center"><i class="fa-solid fa-trash-can"></i></button></div></div>`).join('')}</div></div></div>`;
+            
+            if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left h-full flex flex-col overflow-hidden"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan Mapel & TP</button></form></div><div class="space-y-4 pb-10 flex-grow overflow-y-auto custom-scroll pr-1">${window.appState.mapels.sort((a,b)=>a.kelas-b.kelas).map(m => `<div class="bg-white p-6 rounded-3xl border flex justify-between items-start text-left"><div><div class="flex items-center gap-2 mb-2"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[9px] font-black text-center">KLS ${m.kelas}</span><h5 class="font-black uppercase text-slate-800 text-left">${m.nama}</h5></div><ul class="mt-4 space-y-2 text-left">${m.tp.map((t, idx) => `<li class="flex items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border-l-4 border-blue-200 text-left"><span class="text-[10px] text-slate-600 font-bold leading-tight text-left">${t}</span><button onclick="window.deleteTP('${m.id}', ${idx})" class="text-rose-300 hover:text-rose-500 transition-colors shrink-0 text-center"><i class="fa-solid fa-xmark"></i></button></li>`).join('')}</ul></div><button onclick="window.deleteDocData('mapels', '${m.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg transition-all text-center"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
+            
+            if (v === 'history') {
+                const historyJournals = window.appState.journals.filter(j => j.semester === curSem && j.tanggal.startsWith(window.appState.historyMonth));
+                return `<div class="space-y-6 animate-fadeIn text-left h-full flex flex-col overflow-hidden">
+                    <div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 shrink-0">
+                        <h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Riwayat Smt ${curSem}</h4>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <input type="month" value="${window.appState.historyMonth}" onchange="window.appState.historyMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-4 py-3 font-black outline-none border-none text-xs text-left">
+                            <div class="flex gap-2">
+                                <button onclick="window.exportFormal('journals', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">CSV</button>
+                                <button onclick="window.exportFormal('journals', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">PDF</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col flex-grow text-left">
+                        <div class="overflow-x-auto overflow-y-auto custom-scroll flex-grow">
+                            <table class="w-full text-left text-[11px]"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10"><tr><th class="py-5 px-4 text-left">Tgl</th><th class="py-5 px-4 text-left">Jam</th><th class="py-5 px-4 text-center">Kelas</th><th class="py-5 px-4 text-left">Mapel</th><th class="py-5 px-4 text-center">Aksi</th></tr></thead><tbody class="divide-y">${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `<tr><td class="py-5 px-4 font-black text-left">${j.tanggal}</td><td class="py-5 px-4 font-black text-left">${j.jam_ke}</td><td class="py-5 px-4 text-center font-black">${j.kelas_mengajar}</td><td class="py-5 px-4 uppercase text-blue-600 font-black text-left">${j.mata_pelajaran}</td><td class="py-5 px-4 text-center"><button onclick="window.deleteDocData('journals', '${j.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center"><i class="fa-solid fa-trash-can"></i></button></td></tr>`).join('')}</tbody></table>
+                            ${historyJournals.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase">Data Tidak Ditemukan</p>' : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            if (v === 'reports') {
+                const reportStudents = window.appState.students
+                    .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                    .filter(s => s.nama_siswa.toLowerCase().includes(window.appState.reportSearch.toLowerCase()));
+
+                const year = parseInt(window.appState.reportMonth.split('-')[0]);
+                const month = parseInt(window.appState.reportMonth.split('-')[1]);
+                const daysInMonth = new Date(year, month, 0).getDate();
+
+                return `<div class="space-y-6 animate-fadeIn text-left h-full flex flex-col overflow-hidden">
+                    <div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 shrink-0">
+                        <div class="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Bulan Laporan</label>
+                                <input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left">
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Cari Siswa</label>
+                                <input id="report-search-input" dir="ltr" type="text" placeholder="Cari nama..." value="${window.appState.reportSearch}" oninput="window.handleSearchInput(this, 'reportSearch')" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left">
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Kelas</label>
+                                <select onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black border-none outline-none text-xs text-left">
+                                    ${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Tampilan</label>
+                                <div class="bg-slate-100 p-1 rounded-xl flex gap-1">
+                                    <button onclick="window.appState.reportViewType='rekap'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center ${window.appState.reportViewType==='rekap'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rekap</button>
+                                    <button onclick="window.appState.reportViewType='rinci'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center ${window.appState.reportViewType==='rinci'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rinci</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 shrink-0">
+                            <button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase text-center">CSV</button>
+                            <button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 text-center"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col flex-grow text-left text-left">
+                        <div class="overflow-x-auto overflow-y-auto custom-scroll flex-grow">
+                            <table class="w-full text-left text-[11px] min-w-max">
+                                <thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10">
+                                    <tr>
+                                        <th class="py-5 px-6 sticky left-0 bg-slate-50 z-20 text-left">No</th>
+                                        <th class="py-5 px-4 sticky left-12 bg-slate-50 z-20 text-left">Nama Siswa</th>
+                                        ${window.appState.reportViewType === 'rekap' ? 
+                                            `<th class="py-5 px-4 text-center">H</th><th class="py-5 px-4 text-center">I</th><th class="py-5 px-4 text-center">S</th><th class="py-5 px-4 text-center">A</th>` :
+                                            Array.from({length: daysInMonth}, (_, i) => `<th class="py-5 px-2 text-center text-[9px] w-8">${i+1}</th>`).join('')
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y text-left">
+                                    ${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => {
+                                        const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth));
+                                        
+                                        if (window.appState.reportViewType === 'rekap') {
+                                            return `<tr>
+                                                <td class="py-5 px-6 font-black text-slate-400 bg-white sticky left-0 text-left">${idx+1}</td>
+                                                <td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left">${s.nama_siswa}</td>
+                                                <td class="py-5 px-4 text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td>
+                                                <td class="py-5 px-4 text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td>
+                                                <td class="py-5 px-4 text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td>
+                                                <td class="py-5 px-4 text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td>
+                                            </tr>`;
+                                        } else {
+                                            return `<tr>
+                                                <td class="py-4 px-6 font-black text-slate-400 bg-white sticky left-0 text-left">${idx+1}</td>
+                                                <td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left">${s.nama_siswa}</td>
+                                                ${Array.from({length: daysInMonth}, (_, i) => {
+                                                    const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`;
+                                                    const attDay = attMonth.find(a => a.date === dayStr);
+                                                    let label = "";
+                                                    let color = "text-slate-200";
+                                                    if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; }
+                                                    else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; }
+                                                    else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; }
+                                                    else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; }
+                                                    return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50">${label || '-'}</td>`;
+                                                }).join('')}
+                                            </tr>`;
+                                        }
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                            ${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase">Belum ada data siswa</p>' : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left h-full flex flex-col overflow-hidden text-left"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan</button></form></div><div class="space-y-2 overflow-y-auto custom-scroll flex-grow pb-10 text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
+            
+            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn text-left space-y-8 overflow-y-auto custom-scroll h-full pr-1 pb-10 text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-6 text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-4 text-left leading-none text-slate-800 text-left text-left">Profil Guru</h4><div class="space-y-4 text-left text-left">
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div></div>
+                <div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left"></div>
+                <div class="space-y-2 border-t pt-4 text-left text-left text-left text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left text-left text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left text-left text-left text-left text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left text-left">KLS ${k}</span></label>`).join('')}</div></div>
+                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left text-left text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
+            
+            if (v === 'scanner') return `<div class="max-w-md mx-auto animate-fadeIn text-center"><div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full text-center text-center"><div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center"></div><p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p><button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Reset Kamera</button></div></div>`;
+            
+            if (v === 'info') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left h-full overflow-y-auto custom-scroll pr-1 pb-10 text-left"><div class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-10 text-left"><div><h4 class="font-black text-2xl uppercase tracking-tighter mb-6 text-blue-600 leading-none text-left">Panduan Jurnal Guru</h4><p class="text-sm text-slate-500 font-medium leading-relaxed text-left">Jurnal Guru PRO adalah solusi digital untuk manajemen administrasi kelas yang efisien dan aman.</p></div><div><h4 class="font-black text-xl uppercase mb-6 text-slate-800 leading-none text-left">Tutorial Singkat</h4><ol class="space-y-4 text-xs font-black text-slate-500 text-left"><li>1. Input data siswa dan mata pelajaran per tingkatan kelas.</li><li>2. Gunakan pemindai QR untuk presensi instan.</li><li>3. Isi Jurnal harian; data presensi otomatis terintegrasi.</li><li>4. Ekspor laporan bulanan atau semesteran ke PDF atau CSV.</li></ol></div><div><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Media Sosial</h4><div class="flex justify-center gap-6 text-center text-center"><a href="https://instagram.com/mohdrizkkyy" target="_blank" class="text-rose-500 text-3xl hover:scale-110 transition-all text-center"><i class="fa-brands fa-instagram"></i></a><a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="text-slate-800 text-3xl hover:scale-110 transition-all text-center"><i class="fa-brands fa-tiktok"></i></a><a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="text-rose-600 text-3xl hover:scale-110 transition-all text-center"><i class="fa-brands fa-youtube"></i></a></div></div><div class="pt-8 border-t border-slate-100 text-center shrink-0 text-center"><p class="text-[10px] font-black uppercase text-slate-400 mb-2 leading-none text-center">Dikembangkan Oleh:</p><h5 class="text-lg font-black text-slate-800 uppercase tracking-tighter leading-none text-center">Mohamad Rizki, S.Pd.,Gr.</h5><p class="text-[9px] font-black text-blue-600 uppercase mt-4 leading-none text-center">@mohdrizkkyy</p></div></div></div>`;
+            return ``;
+        };
+
+        const startApp = async () => { try { await signInAnonymously(auth); onAuthStateChanged(auth, (u) => { window.appState.user = u; window.appState.loading = false; window.renderApp(); }); } catch (e) { window.appState.loading = false; window.renderApp(); } };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startApp); else startApp();
+    </script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; overflow: hidden; -webkit-font-smoothing: antialiased; touch-action: manipulation; direction: ltr; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slideDown { animation: slideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Fixed Button Alignment */
+        button { text-align: center !important; justify-content: center !important; }
+        input, textarea, select { text-align: left !important; }
+        
+        #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; }
+        aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        #reader { min-height: 250px; background: #0f172a; position: relative; }
+        #reader video { 
+            object-fit: cover !important; 
+            transform: scaleX(-1) !important; 
+            -webkit-transform: scaleX(-1) !important;
+        }
+        input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; }
+        main { height: 100%; display: flex; flex-direction: column; }
+        #view-container { flex-grow: 1; overflow: hidden; }
+        th.sticky, td.sticky { background-clip: padding-box; }
+    </style>
+</head>
+<body class="bg-slate-50 overflow-hidden h-screen h-[100dvh]">
+    <div id="root" class="h-full"></div>
+    <div id="notif-anchor" class="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex flex-col items-center gap-2 w-full max-w-xs px-6"></div>
+</body>
+</html>
