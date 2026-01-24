@@ -76,7 +76,7 @@
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
             scannerLock: false,
-            scanSuccessPopup: { show: false, studentName: '' } // Popup State
+            scanSuccessPopup: { show: false, studentName: '' } 
         };
 
         // --- 3. UI HELPERS ---
@@ -181,7 +181,51 @@
                 newTP.splice(tpIdx, 1);
                 await updateDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'mapels', mapelId), { tp: newTP });
                 window.showNotif("TP Terhapus");
-                window.appState.modal.show = false; window.renderApp();
+                window.appState.modal.show = false; 
+                window.renderApp();
+            });
+        };
+
+        window.addTPToExisting = async (mapelId) => {
+            const input = document.getElementById(`new-tp-${mapelId}`);
+            const val = input.value.trim();
+            if (!val) return;
+            const mapel = window.appState.mapels.find(m => m.id === mapelId);
+            if (!mapel) return;
+            const newTP = Array.isArray(mapel.tp) ? [...mapel.tp, val] : [val];
+            await updateDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'mapels', mapelId), { tp: newTP });
+            input.value = '';
+            window.showNotif("TP Berhasil Ditambahkan");
+            window.renderApp();
+        };
+
+        window.handleResetAttendance = async () => {
+            const month = document.getElementById('reset-month-picker').value;
+            if (!month) return window.showNotif("Pilih bulan terlebih dahulu!", "error");
+            
+            window.confirmAction("Reset Presensi", `Hapus seluruh data presensi di bulan ${month}? Tindakan ini tidak dapat dibatalkan.`, async () => {
+                const toDelete = window.appState.attendance.filter(a => a.date.startsWith(month));
+                if (toDelete.length === 0) {
+                    window.showNotif("Tidak ada data presensi di bulan tersebut", "error");
+                    window.appState.modal.show = false;
+                    window.renderApp();
+                    return;
+                }
+                
+                window.showNotif("Sedang menghapus...");
+                const batchSize = 400; 
+                for (let i = 0; i < toDelete.length; i += batchSize) {
+                    const batch = writeBatch(db);
+                    const chunk = toDelete.slice(i, i + batchSize);
+                    chunk.forEach(a => {
+                        batch.delete(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'attendance', a.id));
+                    });
+                    await batch.commit();
+                }
+                
+                window.showNotif(`Sukses mereset ${toDelete.length} data presensi`);
+                window.appState.modal.show = false;
+                window.renderApp();
             });
         };
 
@@ -359,20 +403,17 @@
                                 window.appState.scannerLock = true;
                                 await window.markAttendance(student.id, 'Hadir');
                                 
-                                // UI Popup Logic
                                 window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
                                 window.renderApp();
 
                                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                                 
-                                // Stop scanner while popup is active to prevent noise/spam
                                 await window.appState.html5QrCode.stop();
 
                                 setTimeout(async () => {
                                     window.appState.scanSuccessPopup.show = false;
                                     window.appState.scannerLock = false;
                                     window.renderApp();
-                                    // Auto restart camera
                                     await window.startScanner();
                                 }, 2000);
                             } else {
@@ -454,7 +495,6 @@
                         .forEach(j => csv += `${j.tanggal},${j.jam_ke},${j.mata_pelajaran},${j.kelas_mengajar},"${j.tujuan_pembelajaran}",${j.hadir},${j.izin||0},${j.sakit||0},${j.alpa},"${j.catatan||''}",${j.semester}\n`);
                 } else if (type === 'reports') {
                     if (viewType === 'rinci') {
-                        // Header Rinci
                         const year = parseInt(targetMonth.split('-')[0]);
                         const month = parseInt(targetMonth.split('-')[1]);
                         const daysInMonth = new Date(year, month, 0).getDate();
@@ -470,8 +510,6 @@
                             .forEach((s, idx) => {
                                 let row = `${idx+1},${s.nama_siswa},${s.kelas}`;
                                 const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(targetMonth));
-                                
-                                // Daily columns
                                 for (let i = 1; i <= daysInMonth; i++) {
                                     const dayStr = `${targetMonth}-${String(i).padStart(2, '0')}`;
                                     const attDay = attMonth.find(a => a.date === dayStr);
@@ -482,14 +520,11 @@
                                     else if (attDay?.status === 'Alpa') statusChar = 'A';
                                     row += `,${statusChar}`;
                                 }
-                                
-                                // Summary columns
                                 row += `,${attMonth.filter(x=>x.status==='Hadir').length},${attMonth.filter(x=>x.status==='Izin').length},${attMonth.filter(x=>x.status==='Sakit').length},${attMonth.filter(x=>x.status==='Alpa').length}\n`;
                                 csv += row;
                             });
 
                     } else {
-                        // Rekap
                         csv = "Nama,Kls,H,I,S,A,Smt\n";
                         window.appState.students
                             .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
@@ -501,17 +536,13 @@
                 }
                 saveAs(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Laporan_${targetMonth}_${type}_${viewType}.csv`);
             } else {
-                // PDF Logic
                 const isLandscape = type === 'journals' || (type === 'reports' && viewType === 'rinci');
                 const { jsPDF } = window.jspdf; 
                 const docPdf = new jsPDF(isLandscape ? 'l' : 'p', 'mm', 'a4');
-                
-                // Header PDF
                 docPdf.setFontSize(14); 
                 docPdf.setFont("helvetica", "bold"); 
                 const pageWidth = docPdf.internal.pageSize.getWidth();
                 docPdf.text(sets.nama_sekolah.toUpperCase() || "JURNAL GURU", pageWidth / 2, 15, {align:'center'});
-                
                 docPdf.setFontSize(10); 
                 docPdf.text(`Laporan Bulan: ${targetMonth} | TA: ${sets.tahun_ajaran || '-'} | Kelas: ${window.appState.selectedKelas || '-'}`, pageWidth / 2, 22, {align:'center'});
                 
@@ -523,21 +554,16 @@
                     docPdf.autoTable({ head: [['No', 'Tgl', 'Jam', 'Kls', 'Mapel', 'TP', 'H', 'I', 'S', 'A', 'Catatan']], body, startY: 30, styles: {fontSize: 7} });
                 } else if (type === 'reports') {
                     if (viewType === 'rinci') {
-                        // Rinci PDF (Landscape)
                         const year = parseInt(targetMonth.split('-')[0]);
                         const month = parseInt(targetMonth.split('-')[1]);
                         const daysInMonth = new Date(year, month, 0).getDate();
-                        
-                        // Create dynamic header
                         const dayHeaders = Array.from({length: daysInMonth}, (_, i) => String(i+1));
                         const head = [['No', 'Nama', ...dayHeaders, 'H', 'I', 'S', 'A']];
-                        
                         const body = window.appState.students
                             .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
                             .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
                             .map((s, i) => { 
                                 const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(targetMonth)); 
-                                
                                 const dayCells = Array.from({length: daysInMonth}, (_, d) => {
                                     const dayStr = `${targetMonth}-${String(d+1).padStart(2, '0')}`;
                                     const attDay = attMonth.find(a => a.date === dayStr);
@@ -547,28 +573,10 @@
                                     if (attDay?.status === 'Alpa') return 'A';
                                     return '';
                                 });
-
-                                return [
-                                    i+1, 
-                                    s.nama_siswa, 
-                                    ...dayCells,
-                                    attMonth.filter(x=>x.status==='Hadir').length,
-                                    attMonth.filter(x=>x.status==='Izin').length,
-                                    attMonth.filter(x=>x.status==='Sakit').length,
-                                    attMonth.filter(x=>x.status==='Alpa').length
-                                ]; 
+                                return [i+1, s.nama_siswa, ...dayCells, attMonth.filter(x=>x.status==='Hadir').length, attMonth.filter(x=>x.status==='Izin').length, attMonth.filter(x=>x.status==='Sakit').length, attMonth.filter(x=>x.status==='Alpa').length]; 
                             });
-                            
-                        docPdf.autoTable({ 
-                            head, 
-                            body, 
-                            startY: 30, 
-                            styles: { fontSize: 6, cellPadding: 1 },
-                            columnStyles: { 1: { cellWidth: 40 } } // Name column wider
-                        });
-
+                        docPdf.autoTable({ head, body, startY: 30, styles: { fontSize: 6, cellPadding: 1 }, columnStyles: { 1: { cellWidth: 40 } } });
                     } else {
-                        // Rekap PDF (Portrait)
                         const body = window.appState.students
                             .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
                             .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
@@ -579,27 +587,16 @@
                         docPdf.autoTable({ head: [['No', 'Nama Siswa', 'Kls', 'H', 'I', 'S', 'A']], body, startY: 30 });
                     }
                 }
-
-                // Tanda Tangan
                 const finalY = docPdf.lastAutoTable.finalY + 15; 
-                
-                // Ensure signature block doesn't go off page
                 const pH = docPdf.internal.pageSize.getHeight();
                 let sigY = finalY;
-                if (sigY + 40 > pH) {
-                    docPdf.addPage();
-                    sigY = 20;
-                }
-
+                if (sigY + 40 > pH) { docPdf.addPage(); sigY = 20; }
                 const pW = docPdf.internal.pageSize.getWidth();
-                
                 docPdf.setFont("helvetica", "normal"); docPdf.text("Mengetahui,", 30, sigY); docPdf.text("Kepala Sekolah", 30, sigY + 5); 
                 docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_kepsek || "...", 30, sigY + 25); docPdf.setFont("helvetica", "normal"); docPdf.text(`NIP. ${sets.nip_kepsek || "-"}`, 30, sigY + 30);
-                
                 const ttm = `${sets.lokasi || "................"}, ${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
                 docPdf.text(ttm, pW - 70, sigY); docPdf.text("Wali Kelas", pW - 70, sigY + 5); 
                 docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_guru || "...", pW - 70, sigY + 25); docPdf.setFont("helvetica", "normal"); docPdf.text(`NIP. ${sets.nip_guru || "-"}`, pW - 70, sigY + 30);
-                
                 docPdf.save(`Laporan_${targetMonth}_${type}_${viewType}.pdf`);
             }
         };
@@ -611,19 +608,12 @@
             window.appState.mobileMenuOpen = false; 
             window.renderApp(); 
             lucide.createIcons();
-            if (v === 'scanner') {
-                setTimeout(() => { if (document.getElementById('reader')) window.startScanner(); }, 500);
-            }
+            if (v === 'scanner') setTimeout(() => { if (document.getElementById('reader')) window.startScanner(); }, 500);
             if (v === 'dashboard') setTimeout(() => window.initChart(), 500);
-            
-            // Focus and Caret Restoration for Search Inputs
             if (window.appState.lastFocusedId) {
                 setTimeout(() => {
                     const el = document.getElementById(window.appState.lastFocusedId);
-                    if (el) {
-                        el.focus();
-                        el.setSelectionRange(window.appState.lastCaretPos, window.appState.lastCaretPos);
-                    }
+                    if (el) { el.focus(); el.setSelectionRange(window.appState.lastCaretPos, window.appState.lastCaretPos); }
                 }, 10);
             }
         };
@@ -653,26 +643,25 @@
 
         window.renderApp = () => {
             const root = document.getElementById('root');
-            if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Menghubungkan...</div>`; return; }
+            if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse text-center">Menghubungkan...</div>`; return; }
             if (!window.appState.isAuthenticated) {
-                // Login Page Fix: Centered dots with matching tracking/indent
-                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-6 bg-slate-50"><div class="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Buka Sistem</button></form></div></div>`;
+                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Buka Sistem</button></form></div></div>`;
                 lucide.createIcons(); return;
             }
 
             const view = window.appState.currentView; const collapsed = window.appState.sidebarCollapsed;
             root.innerHTML = `
-                <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden transition-all duration-500">
-                    <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none"><i class="fa-solid fa-bars"></i></button></header>
-                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 ${collapsed ? 'w-24' : 'w-64'} w-full shrink-0 z-50 h-full relative overflow-hidden">
-                        <div class="hidden md:flex items-center gap-4 px-6 py-10 relative overflow-hidden shrink-0 text-left">
-                            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"><i class="fa-solid fa-graduation-cap"></i></div>
-                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 scale-0' : 'opacity-100 scale-100'}">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
-                            <button onclick="window.appState.sidebarCollapsed = !window.appState.sidebarCollapsed; window.renderApp();" class="absolute top-10 -right-2 w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-600 shadow-lg transition-all z-[110] outline-none">
-                                <i class="fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-[10px]"></i>
+                <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden text-left">
+                    <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter text-left">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none text-center"><i class="fa-solid fa-bars text-center"></i></button></header>
+                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 ${collapsed ? 'w-24' : 'w-64'} w-full md:relative absolute inset-y-0 left-0 z-[150] h-full shadow-2xl md:shadow-none">
+                        <div class="flex items-center gap-4 px-6 py-10 relative shrink-0 text-left">
+                            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0 text-center"><i class="fa-solid fa-graduation-cap text-center"></i></div>
+                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 scale-0' : 'opacity-100 scale-100'} text-left">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
+                            <button onclick="window.appState.sidebarCollapsed = !window.appState.sidebarCollapsed; window.renderApp();" class="hidden md:flex absolute top-10 -right-2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center text-slate-400 hover:text-blue-600 shadow-lg transition-all z-[110] outline-none text-center">
+                                <i class="fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-[10px] text-center"></i>
                             </button>
                         </div>
-                        <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10">
+                        <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10 text-left">
                             ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
                             ${window.renderNavItem('scanner', 'fa-qrcode', 'QR Presensi')}
                             ${window.renderNavItem('input', 'fa-pen-to-square', 'Isi Jurnal')}
@@ -684,32 +673,30 @@
                             ${window.renderNavItem('settings', 'fa-gear', 'Pengaturan')}
                             ${window.renderNavItem('info', 'fa-circle-info', 'Informasi')}
                         </nav>
+                        ${window.appState.mobileMenuOpen ? `<button onclick="window.appState.mobileMenuOpen = false; window.renderApp();" class="md:hidden absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-center"><i class="fa-solid fa-xmark text-center"></i></button>` : ''}
                     </aside>
-                    <main class="flex-grow overflow-y-auto h-full custom-scroll relative bg-slate-50 flex flex-col text-left">
-                        <div class="max-w-6xl mx-auto w-full p-4 md:p-8 flex-grow flex flex-col h-full">
-                            <header class="mb-8 flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm text-left shrink-0">
-                                <div><h2 class="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-800 leading-none">${view}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2.5 md:px-4 rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 shadow-sm flex items-center justify-center gap-2"><i class="fa-solid fa-repeat"></i> <span class="hidden md:inline">Smt</span> ${window.appState.settings.semester}</button>
-                                    <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-10 h-10 md:w-auto md:px-5 md:py-2.5 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[10px] tracking-widest active:scale-95 shadow-sm text-center"><i class="fa-solid fa-right-from-bracket"></i> <span class="hidden md:inline">Keluar</span></button>
+                    <main class="flex-grow h-full relative bg-slate-50 flex flex-col overflow-hidden text-left">
+                        <div class="max-w-6xl mx-auto w-full p-4 md:p-8 flex flex-col h-full overflow-hidden text-left">
+                            <header class="mb-4 md:mb-8 flex justify-between items-center bg-white p-5 md:p-6 rounded-[2rem] border shadow-sm shrink-0 text-left">
+                                <div><h2 class="text-lg md:text-2xl font-black uppercase tracking-tight text-slate-800 leading-none text-left">${view}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
+                                <div class="flex items-center gap-2 text-center">
+                                    <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-sm flex items-center justify-center gap-2 text-center text-center"><i class="fa-solid fa-repeat text-center"></i> <span class="hidden md:inline text-center">Smt</span> ${window.appState.settings.semester}</button>
+                                    <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-10 h-10 md:w-auto md:px-5 md:py-2.5 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[10px] tracking-widest shadow-sm text-center text-center text-center"><i class="fa-solid fa-right-from-bracket text-center"></i> <span class="hidden md:inline text-center">Keluar</span></button>
                                 </div>
                             </header>
-                            <div id="view-container" class="flex-grow overflow-hidden">${window.renderCurrentView()}</div>
+                            <div id="view-container" class="flex-grow overflow-y-auto custom-scroll pb-10 text-left">
+                                ${window.renderCurrentView()}
+                            </div>
                         </div>
                     </main>
 
-                    ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8">${window.appState.modal.message}</p><div class="flex gap-3"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
-                    ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-10 max-w-xs w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 inline-block mb-8 min-w-[256px] min-h-[256px]"></div><div class="flex flex-col gap-2"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-download"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center">Tutup</button></div></div></div>` : ''}
+                    ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2 text-center">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8 text-center">${window.appState.modal.message}</p><div class="flex gap-3 text-center"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
+                    ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-10 max-w-xs w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6 text-center">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 inline-block mb-8 min-w-[256px] min-h-[256px] text-center"></div><div class="flex flex-col gap-2 text-center"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-download text-center"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center">Tutup</button></div></div></div>` : ''}
                 </div>`;
             lucide.createIcons(); if (view === 'dashboard') window.initChart();
-            
-            // Re-apply focus and selection range
             if (window.appState.lastFocusedId) {
                 const el = document.getElementById(window.appState.lastFocusedId);
-                if (el) {
-                    el.focus();
-                    el.setSelectionRange(window.appState.lastCaretPos, window.appState.lastCaretPos);
-                }
+                if (el) { el.focus(); el.setSelectionRange(window.appState.lastCaretPos, window.appState.lastCaretPos); }
             }
         };
 
@@ -717,7 +704,7 @@
             const v = window.appState.currentView; const curSem = window.appState.settings.semester;
             const diampu = window.appState.settings.kelas_diampu || [];
 
-            if (v === 'dashboard') return `<div class="space-y-8 animate-fadeIn text-left h-full overflow-y-auto custom-scroll"><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="md:col-span-2 bg-gradient-to-br from-blue-600 to-indigo-900 p-10 rounded-[3rem] text-white shadow-xl flex flex-col justify-center min-h-[220px]"><h1 class="text-3xl font-black mb-2 uppercase tracking-tighter">Halo, ${window.appState.settings.nama_guru || 'Guru'}!</h1><p class="opacity-70 text-[10px] font-bold uppercase tracking-widest mb-8">Administrasi Aktif: Semester ${curSem} (${curSem === '1' ? 'Ganjil' : 'Genap'})</p><div class="flex flex-wrap gap-2"><button onclick="window.setView('scanner')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-qrcode"></i> Scan QR</button><button onclick="window.setView('input')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center"><i class="fa-solid fa-pen"></i> Jurnal</button></div></div><div class="bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col justify-center items-center text-center"><div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner"><i class="fa-solid fa-users"></i></div><h3 class="text-3xl font-black text-slate-800">${window.appState.students.length}</h3><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Siswa Aktif</p></div></div><div class="bg-white p-8 rounded-[3rem] border shadow-sm"><h4 class="text-[10px] font-black text-slate-400 uppercase mb-6 text-left">Tren Kehadiran Smt ${curSem}</h4><div class="h-64 relative w-full"><canvas id="attendanceChart"></canvas></div></div></div>`;
+            if (v === 'dashboard') return `<div class="space-y-6 md:space-y-8 animate-fadeIn text-left"><div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 text-left text-left"><div class="md:col-span-2 bg-gradient-to-br from-blue-600 to-indigo-900 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] text-white shadow-xl flex flex-col justify-center min-h-[180px] md:min-h-[220px] text-left text-left text-left"><h1 class="text-2xl md:text-3xl font-black mb-2 uppercase tracking-tighter text-left">Halo, ${window.appState.settings.nama_guru || 'Guru'}!</h1><p class="opacity-70 text-[10px] font-bold uppercase tracking-widest mb-6 md:mb-8 text-left">Administrasi Aktif: Semester ${curSem} (${curSem === '1' ? 'Ganjil' : 'Genap'})</p><div class="flex flex-wrap gap-2 text-left"><button onclick="window.setView('scanner')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center text-center"><i class="fa-solid fa-qrcode text-center"></i> Scan QR</button><button onclick="window.setView('input')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center text-center text-center"><i class="fa-solid fa-pen text-center"></i> Jurnal</button></div></div><div class="bg-white p-8 rounded-[2.5rem] md:rounded-[3rem] border shadow-sm flex flex-col justify-center items-center text-center text-center"><div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner text-center text-center"><i class="fa-solid fa-users text-center"></i></div><h3 class="text-3xl font-black text-slate-800 text-center">${window.appState.students.length}</h3><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 text-center">Siswa Aktif</p></div></div><div class="bg-white p-6 md:p-8 rounded-[2.5rem] md:rounded-[3rem] border shadow-sm text-left"><h4 class="text-[10px] font-black text-slate-400 uppercase mb-6 text-left">Tren Kehadiran Smt ${curSem}</h4><div class="h-64 relative w-full text-left"><canvas id="attendanceChart" class="text-left"></canvas></div></div></div>`;
             
             if (v === 'input') {
                 const students = window.appState.students
@@ -725,15 +712,15 @@
                     .filter(s => s.nama_siswa.toLowerCase().includes(window.appState.attendanceSearch.toLowerCase()));
                 const filteredMapels = window.appState.mapels.filter(m => String(m.kelas) === String(window.appState.selectedKelas));
 
-                return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left h-full overflow-hidden text-left">
-                    <form onsubmit="window.handleSaveJournal(event)" class="bg-white rounded-[3rem] p-8 border shadow-sm space-y-6 overflow-y-auto custom-scroll h-fit max-h-full">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Tanggal</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"></div>
-                            <div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Kelas</label><select name="kelas_mengajar" onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div>
+                return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 animate-fadeIn text-left text-left">
+                    <form onsubmit="window.handleSaveJournal(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm space-y-6 text-left">
+                        <div class="grid grid-cols-2 gap-4 text-left">
+                            <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Tanggal</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"></div>
+                            <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Kelas</label><select name="kelas_mengajar" onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Jam Ke-</label><select name="jam_ke" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${[1,2,3,4,5,6,7,8].map(j => `<option value="${j}">Jam Ke-${j}</option>`).join('')}</select></div>
-                            <div class="flex items-end pb-3"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" class="w-4 h-4"><span class="text-[9px] font-black uppercase">Hari Kerja Khusus</span></label></div>
+                        <div class="grid grid-cols-2 gap-4 text-left">
+                            <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Jam Ke-</label><select name="jam_ke" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${[1,2,3,4,5,6,7,8].map(j => `<option value="${j}">Jam Ke-${j}</option>`).join('')}</select></div>
+                            <div class="flex items-end pb-3 text-left"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" class="w-4 h-4"><span class="text-[9px] font-black uppercase text-left">Hari Kerja Khusus</span></label></div>
                         </div>
                         <select name="mata_pelajaran" onchange="window.appState.selectedMapel = this.value; window.renderApp();" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih Mapel...</option>${filteredMapels.map(m => `<option value="${m.nama}" ${window.appState.selectedMapel===m.nama?'selected':''}>${m.nama}</option>`).join('')}</select>
                         <select onchange="document.getElementsByName('tujuan_pembelajaran')[0].value = this.value" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih TP Database...</option>${(filteredMapels.find(m => m.nama === window.appState.selectedMapel)?.tp || []).map(t => `<option value="${t}">${t}</option>`).join('')}</select>
@@ -741,52 +728,51 @@
                         <textarea name="catatan" placeholder="Catatan..." class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[60px] border-none text-xs text-left"></textarea>
                         <button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Jurnal</button>
                     </form>
-                    
-                    <div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col overflow-hidden max-h-full">
-                        <div class="flex items-center justify-between mb-4 shrink-0">
-                            <h4 class="font-black text-xl uppercase leading-none text-slate-800">Presensi</h4>
-                            <div class="flex gap-2">
-                                <button onclick="window.markAllPresent('${window.appState.selectedKelas}')" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tight shadow-sm text-center"><i class="fa-solid fa-check-double"></i> Hadir Semua</button>
-                                <button onclick="window.setView('scanner')" class="bg-slate-100 text-slate-800 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm text-center"><i class="fa-solid fa-qrcode"></i></button>
+                    <div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left">
+                        <div class="flex items-center justify-between mb-4 shrink-0 text-left">
+                            <h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Presensi</h4>
+                            <div class="flex gap-2 text-center text-center">
+                                <button onclick="window.markAllPresent('${window.appState.selectedKelas}')" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tight shadow-sm text-center text-center">Hadir Semua</button>
+                                <button onclick="window.setView('scanner')" class="bg-slate-100 text-slate-800 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm text-center text-center"><i class="fa-solid fa-qrcode text-center text-center"></i></button>
                             </div>
                         </div>
-                        
-                        <div class="mb-4 relative shrink-0">
+                        <div class="mb-4 relative text-left">
                             <input id="att-search-input" type="text" placeholder="Cari nama siswa..." value="${window.appState.attendanceSearch}" oninput="window.handleSearchInput(this, 'attendanceSearch')" class="w-full bg-slate-50 rounded-xl p-4 pr-10 font-black border-none outline-none text-xs text-left">
-                            <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm"></i>
+                            <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm text-center"></i>
                         </div>
-
-                        <div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow">
-                            ${students.map(s => { const log = window.appState.attendance.find(a => a.studentId === s.id && a.date === window.appState.selectedDate); return `<div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border text-left"><span class="text-[10px] font-black uppercase text-slate-700 truncate w-1/3 text-left">${s.nama_siswa}</span><div class="flex gap-1"><button onclick="window.markAttendance('${s.id}', 'Hadir')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Hadir' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-300 border'}">H</button><button onclick="window.markAttendance('${s.id}', 'Izin')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Izin' ? 'bg-sky-400 text-white shadow-md' : 'bg-white text-slate-300 border'}">I</button><button onclick="window.markAttendance('${s.id}', 'Sakit')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Sakit' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">S</button><button onclick="window.markAttendance('${s.id}', 'Alpa')" class="w-9 h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center ${log?.status === 'Alpa' ? 'bg-rose-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">A</button></div></div>`}).join('') || '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase">Data Tidak Ditemukan</p>'}
+                        <div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">
+                            ${students.map(s => { const log = window.appState.attendance.find(a => a.studentId === s.id && a.date === window.appState.selectedDate); return `<div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border text-left text-left"><span class="text-[10px] font-black uppercase text-slate-700 truncate w-1/3 text-left">${s.nama_siswa}</span><div class="flex gap-1 text-center text-center"><button onclick="window.markAttendance('${s.id}', 'Hadir')" class="w-8 h-8 md:w-9 md:h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center text-center ${log?.status === 'Hadir' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-300 border'}">H</button><button onclick="window.markAttendance('${s.id}', 'Izin')" class="w-8 h-8 md:w-9 md:h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center text-center ${log?.status === 'Izin' ? 'bg-sky-400 text-white shadow-md' : 'bg-white text-slate-300 border'}">I</button><button onclick="window.markAttendance('${s.id}', 'Sakit')" class="w-8 h-8 md:w-9 md:h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center text-center ${log?.status === 'Sakit' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">S</button><button onclick="window.markAttendance('${s.id}', 'Alpa')" class="w-8 h-8 md:w-9 md:h-8 rounded-lg font-black text-[8px] flex items-center justify-center text-center text-center ${log?.status === 'Alpa' ? 'bg-rose-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">A</button></div></div>`}).join('') || '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center">Data Tidak Ditemukan</p>'}
                         </div>
                     </div>
                 </div>`;
             }
 
-            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left h-full overflow-hidden"><div class="bg-white rounded-[3rem] p-8 border shadow-sm h-fit shrink-0"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Sinkron Database</button></form></div><div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col flex-grow overflow-hidden"><div class="flex justify-between items-center mb-6 shrink-0"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center">ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1"><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center"><i class="fa-solid fa-trash-can"></i></button></div></div>`).join('')}</div></div></div>`;
+            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm h-fit text-left"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Sinkron Database</button></form></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left"><div class="flex justify-between items-center mb-6 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center">ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1 text-center"><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode text-center"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div></div>`).join('')}</div></div></div>`;
             
-            if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left h-full flex flex-col overflow-hidden"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan Mapel & TP</button></form></div><div class="space-y-4 pb-10 flex-grow overflow-y-auto custom-scroll pr-1">${window.appState.mapels.sort((a,b)=>a.kelas-b.kelas).map(m => `<div class="bg-white p-6 rounded-3xl border flex justify-between items-start text-left"><div><div class="flex items-center gap-2 mb-2"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[9px] font-black text-center">KLS ${m.kelas}</span><h5 class="font-black uppercase text-slate-800 text-left">${m.nama}</h5></div><ul class="mt-4 space-y-2 text-left">${m.tp.map((t, idx) => `<li class="flex items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border-l-4 border-blue-200 text-left"><span class="text-[10px] text-slate-600 font-bold leading-tight text-left">${t}</span><button onclick="window.deleteTP('${m.id}', ${idx})" class="text-rose-300 hover:text-rose-500 transition-colors shrink-0 text-center"><i class="fa-solid fa-xmark"></i></button></li>`).join('')}</ul></div><button onclick="window.deleteDocData('mapels', '${m.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg transition-all text-center"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
+            if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel Baru</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan Mapel & TP</button></form></div>
+                <div class="space-y-4 pb-10 text-left text-left">
+                    <h4 class="font-black text-lg uppercase mb-4 text-slate-600 text-left">Daftar Mata Pelajaran & TP Terdaftar</h4>
+                    ${window.appState.mapels.sort((a,b)=>a.kelas-b.kelas).map(m => `
+                <div class="bg-white p-6 rounded-3xl border text-left text-left">
+                    <div class="flex justify-between items-start mb-4 text-left text-left">
+                        <div class="flex items-center gap-2 text-left">
+                            <span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[9px] font-black text-center text-center">KLS ${m.kelas}</span>
+                            <h5 class="font-black uppercase text-slate-800 text-left">${m.nama}</h5>
+                        </div>
+                        <button onclick="window.deleteDocData('mapels', '${m.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg transition-all text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button>
+                    </div>
+                    <ul class="space-y-2 mb-6 text-left">
+                        ${(m.tp || []).map((t, idx) => `<li class="flex items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border-l-4 border-blue-200 text-left text-left"><span class="text-[10px] text-slate-600 font-bold leading-tight text-left">${t}</span><button onclick="window.deleteTP('${m.id}', ${idx})" class="text-rose-300 hover:text-rose-500 transition-colors shrink-0 text-center text-center"><i class="fa-solid fa-xmark text-center"></i></button></li>`).join('')}
+                    </ul>
+                    <div class="flex gap-2 text-left">
+                        <input type="text" id="new-tp-${m.id}" placeholder="Tambah TP baru..." class="flex-grow bg-slate-50 border-none outline-none rounded-xl px-4 py-3 text-[10px] font-bold text-left">
+                        <button onclick="window.addTPToExisting('${m.id}')" class="bg-blue-600 text-white px-4 rounded-xl text-xs flex items-center justify-center text-center text-center"><i class="fa-solid fa-plus text-center"></i></button>
+                    </div>
+                </div>`).join('')}</div></div>`;
             
             if (v === 'history') {
                 const historyJournals = window.appState.journals.filter(j => j.semester === curSem && j.tanggal.startsWith(window.appState.historyMonth));
-                return `<div class="space-y-6 animate-fadeIn text-left h-full flex flex-col overflow-hidden">
-                    <div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 shrink-0">
-                        <h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Riwayat Smt ${curSem}</h4>
-                        <div class="flex flex-wrap items-center gap-4">
-                            <input type="month" value="${window.appState.historyMonth}" onchange="window.appState.historyMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-4 py-3 font-black outline-none border-none text-xs text-left">
-                            <div class="flex gap-2">
-                                <button onclick="window.exportFormal('journals', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">CSV</button>
-                                <button onclick="window.exportFormal('journals', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">PDF</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col flex-grow text-left">
-                        <div class="overflow-x-auto overflow-y-auto custom-scroll flex-grow">
-                            <table class="w-full text-left text-[11px]"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10"><tr><th class="py-5 px-4 text-left">Tgl</th><th class="py-5 px-4 text-left">Jam</th><th class="py-5 px-4 text-center">Kelas</th><th class="py-5 px-4 text-left">Mapel</th><th class="py-5 px-4 text-center">Aksi</th></tr></thead><tbody class="divide-y">${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `<tr><td class="py-5 px-4 font-black text-left">${j.tanggal}</td><td class="py-5 px-4 font-black text-left">${j.jam_ke}</td><td class="py-5 px-4 text-center font-black">${j.kelas_mengajar}</td><td class="py-5 px-4 uppercase text-blue-600 font-black text-left">${j.mata_pelajaran}</td><td class="py-5 px-4 text-center"><button onclick="window.deleteDocData('journals', '${j.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center"><i class="fa-solid fa-trash-can"></i></button></td></tr>`).join('')}</tbody></table>
-                            ${historyJournals.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase">Data Tidak Ditemukan</p>' : ''}
-                        </div>
-                    </div>
-                </div>`;
+                return `<div class="space-y-6 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Riwayat Smt ${curSem}</h4><div class="flex flex-wrap items-center gap-4 text-left"><input type="month" value="${window.appState.historyMonth}" onchange="window.appState.historyMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-4 py-3 font-black outline-none border-none text-xs text-left"><div class="flex gap-2 text-center text-center"><button onclick="window.exportFormal('journals', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">CSV</button><button onclick="window.exportFormal('journals', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">PDF</button></div></div></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] border shadow-sm overflow-hidden text-left text-left"><div class="overflow-x-auto custom-scroll text-left"><table class="w-full text-left text-[11px] text-left"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 text-left text-left"><tr><th class="py-5 px-4 text-left text-left">Tgl</th><th class="py-5 px-4 text-left">Jam</th><th class="py-5 px-4 text-center">Kelas</th><th class="py-5 px-4 text-left">Mapel</th><th class="py-5 px-4 text-center">Aksi</th></tr></thead><tbody class="divide-y text-left">${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `<tr class="text-left text-left"><td class="py-5 px-4 font-black text-left">${j.tanggal}</td><td class="py-5 px-4 font-black text-left text-left">${j.jam_ke}</td><td class="py-5 px-4 text-center font-black text-center text-center">${j.kelas_mengajar}</td><td class="py-5 px-4 uppercase text-blue-600 font-black text-left text-left text-left">${j.mata_pelajaran}</td><td class="py-5 px-4 text-center text-center text-center"><button onclick="window.deleteDocData('journals', '${j.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></td></tr>`).join('')}</tbody></table>${historyJournals.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center">Data Tidak Ditemukan</p>' : ''}</div></div></div>`;
             }
 
             if (v === 'reports') {
@@ -798,174 +784,71 @@
                 const month = parseInt(window.appState.reportMonth.split('-')[1]);
                 const daysInMonth = new Date(year, month, 0).getDate();
 
-                return `<div class="space-y-6 animate-fadeIn text-left h-full flex flex-col overflow-hidden">
-                    <div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 shrink-0">
-                        <div class="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Bulan Laporan</label>
-                                <input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left">
-                            </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Cari Siswa</label>
-                                <input id="report-search-input" dir="ltr" type="text" placeholder="Cari nama..." value="${window.appState.reportSearch}" oninput="window.handleSearchInput(this, 'reportSearch')" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left">
-                            </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Kelas</label>
-                                <select onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black border-none outline-none text-xs text-left">
-                                    ${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Tampilan</label>
-                                <div class="bg-slate-100 p-1 rounded-xl flex gap-1">
-                                    <button onclick="window.appState.reportViewType='rekap'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center ${window.appState.reportViewType==='rekap'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rekap</button>
-                                    <button onclick="window.appState.reportViewType='rinci'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center ${window.appState.reportViewType==='rinci'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rinci</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex gap-2 shrink-0">
-                            <button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase text-center">CSV</button>
-                            <button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 text-center"><i class="fa-solid fa-file-pdf"></i> PDF</button>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col flex-grow text-left text-left text-left">
-                        <div class="overflow-x-auto overflow-y-auto custom-scroll flex-grow">
-                            <table class="w-full text-left text-[11px] min-w-max">
-                                <thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10">
-                                    <tr>
-                                        <th class="py-5 px-6 sticky left-0 bg-slate-50 z-20 text-left">No</th>
-                                        <th class="py-5 px-4 sticky left-12 bg-slate-50 z-20 text-left">Nama Siswa</th>
-                                        ${window.appState.reportViewType === 'rekap' ? 
-                                            `<th class="py-5 px-4 text-center">H</th><th class="py-5 px-4 text-center">I</th><th class="py-5 px-4 text-center">S</th><th class="py-5 px-4 text-center">A</th>` :
-                                            Array.from({length: daysInMonth}, (_, i) => `<th class="py-5 px-2 text-center text-[9px] w-8">${i+1}</th>`).join('')
-                                        }
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y text-left">
-                                    ${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => {
-                                        const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth));
-                                        
-                                        if (window.appState.reportViewType === 'rekap') {
-                                            return `<tr>
-                                                <td class="py-5 px-6 font-black text-slate-400 bg-white sticky left-0 text-left">${idx+1}</td>
-                                                <td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left">${s.nama_siswa}</td>
-                                                <td class="py-5 px-4 text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td>
-                                                <td class="py-5 px-4 text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td>
-                                                <td class="py-5 px-4 text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td>
-                                                <td class="py-5 px-4 text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td>
-                                            </tr>`;
-                                        } else {
-                                            return `<tr>
-                                                <td class="py-4 px-6 font-black text-slate-400 bg-white sticky left-0 text-left">${idx+1}</td>
-                                                <td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left">${s.nama_siswa}</td>
-                                                ${Array.from({length: daysInMonth}, (_, i) => {
-                                                    const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`;
-                                                    const attDay = attMonth.find(a => a.date === dayStr);
-                                                    let label = "";
-                                                    let color = "text-slate-200";
-                                                    if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; }
-                                                    else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; }
-                                                    else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; }
-                                                    else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; }
-                                                    return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50">${label || '-'}</td>`;
-                                                }).join('')}
-                                            </tr>`;
-                                        }
-                                    }).join('')}
-                                </tbody>
-                            </table>
-                            ${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase">Belum ada data siswa</p>' : ''}
-                        </div>
-                    </div>
-                </div>`;
+                return `<div class="space-y-6 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left"><div class="flex flex-wrap items-center gap-4 w-full md:w-auto text-left"><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left text-left">Bulan Laporan</label><input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Cari Siswa</label><input id="report-search-input" dir="ltr" type="text" placeholder="Cari nama..." value="${window.appState.reportSearch}" oninput="window.handleSearchInput(this, 'reportSearch')" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Kelas</label><select onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Tampilan</label><div class="bg-slate-100 p-1 rounded-xl flex gap-1 text-center"><button onclick="window.appState.reportViewType='rekap'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rekap'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rekap</button><button onclick="window.appState.reportViewType='rinci'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rinci'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rinci</button></div></div></div><div class="flex gap-2 shrink-0 text-center"><button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase text-center">CSV</button><button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 text-center text-center"><i class="fa-solid fa-file-pdf text-center"></i> PDF</button></div></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] border shadow-sm overflow-hidden text-left"><div class="overflow-x-auto custom-scroll text-left text-left text-left"><table class="w-full text-left text-[11px] min-w-max text-left text-left text-left"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10 text-left text-left"><tr><th class="py-5 px-6 sticky left-0 bg-slate-50 z-20 text-left text-left">No</th><th class="py-5 px-4 sticky left-12 bg-slate-50 z-20 text-left text-left">Nama Siswa</th>${window.appState.reportViewType === 'rekap' ? `<th class="py-5 px-4 text-center">H</th><th class="py-5 px-4 text-center">I</th><th class="py-5 px-4 text-center">S</th><th class="py-5 px-4 text-center">A</th>` : Array.from({length: daysInMonth}, (_, i) => `<th class="py-5 px-2 text-center text-[9px] w-8 text-center text-center">${i+1}</th>`).join('')}</tr></thead><tbody class="divide-y text-left text-left text-left">${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => { const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth)); if (window.appState.reportViewType === 'rekap') { return `<tr class="text-left text-left"><td class="py-5 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left">${s.nama_siswa}</td><td class="py-5 px-4 text-center text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td></tr>`; } else { return `<tr class="text-left text-left"><td class="py-4 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left text-left">${s.nama_siswa}</td>${Array.from({length: daysInMonth}, (_, i) => { const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`; const attDay = attMonth.find(a => a.date === dayStr); let label = ""; let color = "text-slate-200"; if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; } else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; } else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; } else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; } return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50 text-center text-center">${label || '-'}</td>`; }).join('')}</tr>`; } }).join('')}</tbody></table>${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center text-center">Belum ada data siswa</p>' : ''}</div></div></div>`;
             }
 
-            if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left h-full flex flex-col overflow-hidden text-left text-left"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left text-left text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left text-left text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan</button></form></div><div class="space-y-2 overflow-y-auto custom-scroll flex-grow pb-10 text-left text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
+            if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan</button></form></div><div class="space-y-2 pb-10 text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div>`).join('')}</div></div>`;
             
-            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn text-left space-y-8 overflow-y-auto custom-scroll h-full pr-1 pb-10 text-left text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-4 text-left leading-none text-slate-800 text-left text-left text-left text-left text-left text-left text-left text-left">Profil Guru</h4><div class="space-y-4 text-left text-left text-left text-left text-left">
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div></div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div></div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div></div>
-                <div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div>
-                <div class="space-y-2 border-t pt-4 text-left text-left text-left text-left text-left text-left text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left text-left text-left text-left text-left text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left text-left text-left text-left text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left text-left text-left text-left text-left text-left text-left text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left text-left text-left text-left">KLS ${k}</span></label>`).join('')}</div></div>
-                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left text-left text-left text-left text-left text-left text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-left text-left text-left text-left text-left text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
+            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn space-y-8 pb-10 text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 border shadow-sm space-y-6 text-left"><h4 class="font-black text-xl uppercase mb-4 leading-none text-slate-800 text-left">Profil Guru</h4><div class="space-y-4 text-left"><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div class="space-y-2 border-t pt-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left">KLS ${k}</span></label>`).join('')}</div></div></div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form>
+                <div class="bg-amber-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-amber-100 space-y-6 text-left">
+                    <h4 class="font-black text-xl uppercase text-amber-700 leading-none text-left">Pemeliharaan Data</h4>
+                    <div class="space-y-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Reset Presensi per Bulan</label><div class="flex gap-3 text-left"><input type="month" id="reset-month-picker" class="flex-grow bg-white rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button onclick="window.handleResetAttendance()" class="bg-amber-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Reset Bulan</button></div></div>
+                </div>
+                <div class="bg-rose-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-rose-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
             
             if (v === 'scanner') return `
-                <div class="max-w-md mx-auto animate-fadeIn text-center relative h-full">
-                    <div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full relative overflow-hidden">
-                        <div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0"></div>
-                        
-                        <!-- Success Popup Overlay -->
+                <div class="max-w-md mx-auto animate-fadeIn relative h-full flex items-center justify-center">
+                    <div class="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 border shadow-sm text-center flex flex-col items-center w-full relative overflow-hidden text-center">
+                        <div id="reader" class="rounded-[2rem] md:rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center"></div>
                         ${window.appState.scanSuccessPopup.show ? `
-                        <div class="absolute inset-x-10 top-10 aspect-square rounded-[2.5rem] bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-[110] animate-fadeIn">
-                            <div class="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center text-4xl mb-4 shadow-lg scale-110 animate-bounce">
-                                <i class="fa-solid fa-check"></i>
-                            </div>
-                            <h5 class="text-xs font-black uppercase text-slate-800 mb-1 tracking-tight px-4 text-center">${window.appState.scanSuccessPopup.studentName}</h5>
-                            <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Berhasil Presensi</p>
-                        </div>
-                        ` : ''}
-
-                        <p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none">Arahkan kamera ke QR Siswa</p>
-                        <button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Aktifkan Kamera</button>
+                        <div class="absolute inset-x-6 md:inset-x-10 top-6 md:top-10 aspect-square rounded-[2rem] md:rounded-[2.5rem] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center z-[110] animate-fadeIn text-center text-center">
+                            <div class="w-16 h-16 md:w-20 md:h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center text-3xl md:text-4xl mb-4 shadow-lg scale-110 animate-bounce text-center text-center"><i class="fa-solid fa-check text-center"></i></div>
+                            <h5 class="text-xs md:text-sm font-black uppercase text-slate-800 mb-1 tracking-tight px-4 text-center">${window.appState.scanSuccessPopup.studentName}</h5>
+                            <p class="text-[8px] md:text-[9px] font-bold text-emerald-600 uppercase tracking-widest text-center">Berhasil Presensi</p>
+                        </div>` : ''}
+                        <p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p>
+                        <button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Aktifkan Kamera</button>
                     </div>
                 </div>`;
             
-            if (v === 'info') return `<div class="max-w-3xl mx-auto animate-fadeIn h-full overflow-y-auto custom-scroll pr-1 pb-16">
-                <div class="bg-white rounded-[3.5rem] p-10 border shadow-sm space-y-12">
-                    <div class="text-center">
-                        <div class="w-20 h-20 bg-blue-600 text-white rounded-[2.5rem] flex items-center justify-center text-3xl mx-auto mb-6 shadow-xl animate-bounce">
-                            <i class="fa-solid fa-graduation-cap"></i>
-                        </div>
-                        <h4 class="font-black text-3xl uppercase tracking-tighter mb-2 text-slate-800 leading-none">Jurnal Guru <span class="text-blue-600 text-4xl">PRO</span></h4>
-                        <p class="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em]">Otomasi & Digitalisasi Administrasi Kelas</p>
+            if (v === 'info') return `<div class="max-w-3xl mx-auto animate-fadeIn h-full overflow-y-auto custom-scroll pr-1 pb-16 text-left">
+                <div class="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-8 md:p-10 border shadow-sm space-y-12 text-left">
+                    <div class="text-center text-center text-center">
+                        <div class="w-20 h-20 bg-blue-600 text-white rounded-[2.5rem] flex items-center justify-center text-3xl mx-auto mb-6 shadow-xl animate-bounce text-center"><i class="fa-solid fa-graduation-cap text-center"></i></div>
+                        <h4 class="font-black text-2xl md:text-3xl uppercase tracking-tighter mb-2 text-slate-800 leading-none text-center">Jurnal Guru <span class="text-blue-600 text-4xl text-center">PRO</span></h4>
+                        <p class="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em] text-center text-center">Otomasi & Digitalisasi Administrasi Kelas</p>
                     </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 relative overflow-hidden group">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 text-left text-left">
+                        <div class="bg-slate-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-slate-100 relative overflow-hidden group text-left text-left">
                             <div class="absolute top-0 right-0 w-24 h-24 bg-blue-100/50 rounded-bl-[5rem] -mr-10 -mt-10 transition-all group-hover:scale-110"></div>
-                            <h5 class="font-black uppercase text-blue-600 text-xs mb-4 tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> Efisiensi Tanpa Batas</h5>
-                            <p class="text-sm text-slate-600 font-medium leading-relaxed">Dirancang untuk memangkas waktu administratif yang melelahkan. Jurnal Guru PRO memberikan ruang lebih bagi Anda untuk membangun koneksi bermakna dengan setiap murid di kelas.</p>
+                            <h5 class="font-black uppercase text-blue-600 text-xs mb-4 tracking-widest flex items-center gap-2 text-left text-left text-left text-left"><i class="fa-solid fa-wand-magic-sparkles text-left text-left"></i> Efisiensi Tanpa Batas</h5>
+                            <p class="text-sm text-slate-600 font-medium leading-relaxed text-left text-left">Dirancang untuk memangkas waktu administratif yang melelahkan. Jurnal Guru PRO memberikan ruang lebih bagi Anda untuk membangun koneksi bermakna dengan setiap murid di kelas.</p>
                         </div>
-                        <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-10 rounded-[3rem] text-white shadow-xl">
-                            <h5 class="font-black uppercase text-blue-100 text-xs mb-4 tracking-widest">Infrastruktur Sistem</h5>
-                            <div class="flex items-center gap-4 mb-4">
-                                <span class="text-4xl font-black">2.9</span>
-                                <div class="bg-white/20 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter">Premium Core</div>
+                        <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] text-white shadow-xl text-left text-left text-left">
+                            <h5 class="font-black uppercase text-blue-100 text-xs mb-4 tracking-widest text-left text-left">Infrastruktur Sistem</h5>
+                            <div class="flex items-center gap-4 mb-4 text-left text-left">
+                                <span class="text-3xl md:text-4xl font-black">1.0</span>
+                                <div class="bg-white/20 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter text-center">Stable Release</div>
                             </div>
-                            <p class="text-white/80 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-shield-halved"></i> Google Cloud Secure Storage</p>
+                            <p class="text-white/80 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-left text-left text-left"><i class="fa-solid fa-shield-halved text-left"></i> Google Cloud Secure Storage</p>
                         </div>
                     </div>
-
-                    <div class="space-y-8">
-                        <h5 class="font-black uppercase text-slate-800 text-center text-xs tracking-[0.4em]">Core Technology Modules</h5>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            ${[
-                                {icon: 'fa-database', t: 'Data Core', d: 'Manajemen basis data siswa dan kurikulum dengan presisi tinggi.'},
-                                {icon: 'fa-qrcode', t: 'Rapid Scan', d: 'Teknologi presensi QR instan dengan alur otomatis tanpa henti.'},
-                                {icon: 'fa-microchip', t: 'Auto Sync', d: 'Integrasi otomatis data presensi ke dalam administrasi harian.'},
-                                {icon: 'fa-file-pdf', t: 'Smart Export', d: 'Hasilkan laporan administratif formal dalam hitungan detik.'}
-                            ].map(item => `
-                                <div class="text-center p-8 bg-white border border-slate-50 rounded-[2.5rem] hover:shadow-xl hover:border-blue-100 transition-all duration-300">
-                                    <div class="text-blue-600 text-2xl mb-4"><i class="fa-solid ${item.icon}"></i></div>
-                                    <h6 class="font-black text-[11px] uppercase mb-2 text-slate-800">${item.t}</h6>
-                                    <p class="text-[9px] text-slate-400 font-bold leading-relaxed uppercase">${item.d}</p>
-                                </div>
-                            `).join('')}
+                    <div class="space-y-8 text-center text-center">
+                        <h5 class="font-black uppercase text-slate-800 text-center text-xs tracking-[0.4em] text-center text-center">Core Technology Modules</h5>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 text-center text-center">
+                            ${[{icon: 'fa-database', t: 'Data Core', d: 'Manajemen basis data siswa dan kurikulum dengan presisi tinggi.'},{icon: 'fa-qrcode', t: 'Rapid Scan', d: 'Teknologi presensi QR instan dengan alur otomatis tanpa henti.'},{icon: 'fa-microchip', t: 'Auto Sync', d: 'Integrasi otomatis data presensi ke dalam administrasi harian.'},{icon: 'fa-file-pdf', t: 'Smart Export', d: 'Hasilkan laporan administratif formal dalam hitungan detik.'}].map(item => `<div class="text-center p-6 md:p-8 bg-white border border-slate-50 rounded-[2.5rem] hover:shadow-xl hover:border-blue-100 transition-all duration-300 text-center"><div class="text-blue-600 text-2xl mb-4 text-center text-center"><i class="fa-solid ${item.icon} text-center"></i></div><h6 class="font-black text-[11px] uppercase mb-2 text-slate-800 text-center">${item.t}</h6><p class="text-[9px] text-slate-400 font-bold leading-relaxed uppercase text-center">${item.d}</p></div>`).join('')}
                         </div>
                     </div>
-
-                    <div class="pt-12 border-t border-slate-100 flex flex-col items-center">
-                        <p class="text-[10px] font-black uppercase text-slate-400 mb-8 tracking-[0.3em]">Developer Partnership</p>
-                        <div class="flex justify-center gap-5 mb-12">
-                            <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="w-16 h-16 bg-rose-50 text-rose-500 rounded-[1.5rem] flex items-center justify-center text-3xl hover:bg-rose-500 hover:text-white transition-all shadow-md"><i class="fa-brands fa-instagram"></i></a>
-                            <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="w-16 h-16 bg-slate-100 text-slate-800 rounded-[1.5rem] flex items-center justify-center text-3xl hover:bg-slate-800 hover:text-white transition-all shadow-md"><i class="fa-brands fa-tiktok"></i></a>
-                            <a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="w-16 h-16 bg-rose-100 text-rose-600 rounded-[1.5rem] flex items-center justify-center text-3xl hover:bg-rose-600 hover:text-white transition-all shadow-md"><i class="fa-brands fa-youtube"></i></a>
+                    <div class="pt-12 border-t border-slate-100 flex flex-col items-center text-center text-center text-center text-center text-center">
+                        <p class="text-[10px] font-black uppercase text-slate-400 mb-8 tracking-[0.3em] text-center text-center text-center">Developer Partnership</p>
+                        <div class="flex justify-center gap-4 md:gap-5 mb-12 text-center text-center">
+                            <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="w-14 h-14 md:w-16 md:h-16 bg-rose-50 text-rose-500 rounded-[1.5rem] flex items-center justify-center text-2xl md:text-3xl hover:bg-rose-500 hover:text-white transition-all shadow-md text-center text-center"><i class="fa-brands fa-instagram text-center"></i></a>
+                            <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="w-14 h-14 md:w-16 md:h-16 bg-slate-100 text-slate-800 rounded-[1.5rem] flex items-center justify-center text-2xl md:text-3xl hover:bg-slate-800 hover:text-white transition-all shadow-md text-center text-center"><i class="fa-brands fa-tiktok text-center"></i></a>
+                            <a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="w-14 h-14 md:w-16 md:h-16 bg-rose-100 text-rose-600 rounded-[1.5rem] flex items-center justify-center text-2xl md:text-3xl hover:bg-rose-600 hover:text-white transition-all shadow-md text-center text-center"><i class="fa-brands fa-youtube text-center"></i></a>
                         </div>
-                        <div class="text-center bg-slate-50 py-6 px-12 rounded-[2rem] border">
-                            <h5 class="text-base font-black text-slate-800 uppercase tracking-tighter">Mohamad Rizki, S.Pd.,Gr.</h5>
-                            <p class="text-[9px] font-black text-blue-600 uppercase mt-2 tracking-widest">Innovative Educator & Fullstack System Architect</p>
+                        <div class="text-center bg-slate-50 py-6 px-10 md:px-12 rounded-[2rem] border text-center text-center">
+                            <h5 class="text-sm md:text-base font-black text-slate-800 uppercase tracking-tighter text-center">Mohamad Rizki, S.Pd.,Gr.</h5>
+                            <p class="text-[9px] font-black text-blue-600 uppercase mt-2 tracking-widest text-center">Innovative Educator & Fullstack System Architect</p>
                         </div>
                     </div>
                 </div>
@@ -977,30 +860,29 @@
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startApp); else startApp();
     </script>
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; overflow: hidden; -webkit-font-smoothing: antialiased; touch-action: manipulation; direction: ltr; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; -webkit-font-smoothing: antialiased; touch-action: manipulation; direction: ltr; margin: 0; padding: 0; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-slideDown { animation: slideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Fixed Button Alignment */
         button { text-align: center !important; justify-content: center !important; }
         input, textarea, select { text-align: left !important; }
         
-        #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; }
+        #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; max-width: 100%; height: auto; }
         aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         #reader { min-height: 250px; background: #0f172a; position: relative; }
-        #reader video { 
-            object-fit: cover !important; 
-            transform: scaleX(-1) !important; 
-            -webkit-transform: scaleX(-1) !important;
-        }
+        #reader video { object-fit: cover !important; transform: scaleX(-1) !important; -webkit-transform: scaleX(-1) !important; width: 100% !important; height: 100% !important; }
         input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; }
-        main { height: 100%; display: flex; flex-direction: column; }
-        #view-container { flex-grow: 1; overflow: hidden; }
-        th.sticky, td.sticky { background-clip: padding-box; }
+        
+        /* Layout responsiveness fixes */
+        html, body { height: 100%; width: 100%; overflow: hidden; }
+        #root { height: 100%; display: flex; flex-direction: column; }
+        
+        /* Ensure specific table behaviors */
+        th.sticky, td.sticky { background-clip: padding-box; z-index: 20; }
     </style>
 </head>
 <body class="bg-slate-50 overflow-hidden h-screen h-[100dvh]">
