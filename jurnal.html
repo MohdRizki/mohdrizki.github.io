@@ -79,6 +79,20 @@
             scanSuccessPopup: { show: false, studentName: '' } 
         };
 
+        // Mapping View ke Judul Bahasa Indonesia
+        const viewTitles = {
+            'dashboard': 'Beranda',
+            'scanner': 'Scan QR Presensi',
+            'input': 'Isi Jurnal Harian',
+            'mapel': 'Mata Pelajaran',
+            'history': 'Riwayat Jurnal',
+            'reports': 'Laporan Administrasi',
+            'students': 'Pengelolaan Siswa',
+            'holidays': 'Hari Libur',
+            'settings': 'Pengaturan Sistem',
+            'info': 'Tentang Aplikasi'
+        };
+
         // --- 3. UI HELPERS ---
         window.showNotif = (msg, tipe = 'success') => {
             const wadah = document.getElementById('notif-anchor');
@@ -645,11 +659,13 @@
             const root = document.getElementById('root');
             if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse text-center">Menghubungkan...</div>`; return; }
             if (!window.appState.isAuthenticated) {
-                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Buka Sistem</button></form></div></div>`;
+                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Buka Sistem</button></form></div></div>`;
                 lucide.createIcons(); return;
             }
 
             const view = window.appState.currentView; const collapsed = window.appState.sidebarCollapsed;
+            const currentTitle = viewTitles[view] || view;
+
             root.innerHTML = `
                 <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden text-left">
                     <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter text-left">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none text-center"><i class="fa-solid fa-bars text-center"></i></button></header>
@@ -663,22 +679,22 @@
                         </div>
                         <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10 text-left">
                             ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
-                            ${window.renderNavItem('scanner', 'fa-qrcode', 'QR Presensi')}
+                            ${window.renderNavItem('scanner', 'fa-qrcode', 'Scan QR')}
                             ${window.renderNavItem('input', 'fa-pen-to-square', 'Isi Jurnal')}
                             ${window.renderNavItem('mapel', 'fa-book-open', 'Mata Pelajaran')}
                             ${window.renderNavItem('history', 'fa-clock-rotate-left', 'Riwayat')}
                             ${window.renderNavItem('reports', 'fa-file-invoice', 'Laporan')}
-                            ${window.renderNavItem('students', 'fa-users', 'Database Siswa')}
+                            ${window.renderNavItem('students', 'fa-users-gear', 'Pengelolaan Siswa')}
                             ${window.renderNavItem('holidays', 'fa-calendar-day', 'Hari Libur')}
                             ${window.renderNavItem('settings', 'fa-gear', 'Pengaturan')}
-                            ${window.renderNavItem('info', 'fa-circle-info', 'Informasi')}
+                            ${window.renderNavItem('info', 'fa-circle-info', 'Tentang')}
                         </nav>
                         ${window.appState.mobileMenuOpen ? `<button onclick="window.appState.mobileMenuOpen = false; window.renderApp();" class="md:hidden absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-center"><i class="fa-solid fa-xmark text-center"></i></button>` : ''}
                     </aside>
                     <main class="flex-grow h-full relative bg-slate-50 flex flex-col overflow-hidden text-left">
                         <div class="max-w-6xl mx-auto w-full p-4 md:p-8 flex flex-col h-full overflow-hidden text-left">
                             <header class="mb-4 md:mb-8 flex justify-between items-center bg-white p-5 md:p-6 rounded-[2rem] border shadow-sm shrink-0 text-left">
-                                <div><h2 class="text-lg md:text-2xl font-black uppercase tracking-tight text-slate-800 leading-none text-left">${view}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
+                                <div><h2 class="text-lg md:text-2xl font-black uppercase tracking-tight text-slate-800 leading-none text-left">${currentTitle}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
                                 <div class="flex items-center gap-2 text-center">
                                     <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-sm flex items-center justify-center gap-2 text-center text-center"><i class="fa-solid fa-repeat text-center"></i> <span class="hidden md:inline text-center">Smt</span> ${window.appState.settings.semester}</button>
                                     <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-10 h-10 md:w-auto md:px-5 md:py-2.5 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[10px] tracking-widest shadow-sm text-center text-center text-center"><i class="fa-solid fa-right-from-bracket text-center"></i> <span class="hidden md:inline text-center">Keluar</span></button>
@@ -704,7 +720,93 @@
             const v = window.appState.currentView; const curSem = window.appState.settings.semester;
             const diampu = window.appState.settings.kelas_diampu || [];
 
-            if (v === 'dashboard') return `<div class="space-y-6 md:space-y-8 animate-fadeIn text-left"><div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 text-left text-left"><div class="md:col-span-2 bg-gradient-to-br from-blue-600 to-indigo-900 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] text-white shadow-xl flex flex-col justify-center min-h-[180px] md:min-h-[220px] text-left text-left text-left"><h1 class="text-2xl md:text-3xl font-black mb-2 uppercase tracking-tighter text-left">Halo, ${window.appState.settings.nama_guru || 'Guru'}!</h1><p class="opacity-70 text-[10px] font-bold uppercase tracking-widest mb-6 md:mb-8 text-left">Administrasi Aktif: Semester ${curSem} (${curSem === '1' ? 'Ganjil' : 'Genap'})</p><div class="flex flex-wrap gap-2 text-left"><button onclick="window.setView('scanner')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center text-center"><i class="fa-solid fa-qrcode text-center"></i> Scan QR</button><button onclick="window.setView('input')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center justify-center gap-2 text-center text-center text-center"><i class="fa-solid fa-pen text-center"></i> Jurnal</button></div></div><div class="bg-white p-8 rounded-[2.5rem] md:rounded-[3rem] border shadow-sm flex flex-col justify-center items-center text-center text-center"><div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner text-center text-center"><i class="fa-solid fa-users text-center"></i></div><h3 class="text-3xl font-black text-slate-800 text-center">${window.appState.students.length}</h3><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 text-center">Siswa Aktif</p></div></div><div class="bg-white p-6 md:p-8 rounded-[2.5rem] md:rounded-[3rem] border shadow-sm text-left"><h4 class="text-[10px] font-black text-slate-400 uppercase mb-6 text-left">Tren Kehadiran Smt ${curSem}</h4><div class="h-64 relative w-full text-left"><canvas id="attendanceChart" class="text-left"></canvas></div></div></div>`;
+            if (v === 'dashboard') {
+                const today = new Date().toISOString().split('T')[0];
+                const journalToday = window.appState.journals.filter(j => j.tanggal === today).length;
+                const hadirToday = window.appState.attendance.filter(a => a.date === today && a.status === 'Hadir').length;
+
+                return `
+                <div class="space-y-6 md:space-y-8 animate-fadeIn text-left">
+                    <!-- Banner Selamat Datang -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 text-left">
+                        <div class="md:col-span-2 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 p-8 md:p-12 rounded-[3rem] text-white shadow-2xl flex flex-col justify-center relative overflow-hidden group">
+                            <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-all duration-700"></div>
+                            <div class="relative z-10">
+                                <span class="bg-white/20 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md mb-6 inline-block">Sistem Administrasi Pro</span>
+                                <h1 class="text-3xl md:text-5xl font-black mb-3 uppercase tracking-tighter leading-none">Selamat Datang,<br><span class="text-blue-200">${window.appState.settings.nama_guru || 'Rekan Guru'}!</span></h1>
+                                <p class="opacity-80 text-[11px] font-bold uppercase tracking-widest mb-10">Semester ${curSem} • ${window.appState.settings.nama_sekolah || 'Digitalisasi Sekolah'}</p>
+                                <div class="flex flex-wrap gap-4">
+                                    <button onclick="window.setView('scanner')" class="bg-white text-blue-600 px-8 py-4 rounded-2xl text-[11px] font-black uppercase shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-3">
+                                        <i class="fa-solid fa-qrcode"></i> Scan Presensi
+                                    </button>
+                                    <button onclick="window.setView('input')" class="bg-blue-500/30 border border-white/30 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase backdrop-blur-md hover:bg-white/20 transition-all flex items-center justify-center gap-3">
+                                        <i class="fa-solid fa-pen"></i> Tulis Jurnal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Statistik Cepat -->
+                        <div class="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col justify-between items-center text-center relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
+                            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-[2rem] flex items-center justify-center text-3xl mb-6 shadow-inner animate-pulse">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <h3 class="text-5xl font-black text-slate-900 tracking-tighter">${window.appState.students.length}</h3>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Siswa Aktif</p>
+                            </div>
+                            <div class="w-full h-px bg-slate-100 my-6"></div>
+                            <div class="flex justify-around w-full">
+                                <div class="text-center">
+                                    <p class="text-sm font-black text-blue-600">${journalToday}</p>
+                                    <p class="text-[8px] font-black text-slate-400 uppercase">Jurnal Hari Ini</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-sm font-black text-emerald-600">${hadirToday}</p>
+                                    <p class="text-[8px] font-black text-slate-400 uppercase">Siswa Hadir</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart Section -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/50">
+                            <div class="flex justify-between items-center mb-10">
+                                <div>
+                                    <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Aktivitas Kehadiran</h4>
+                                    <p class="text-lg font-black text-slate-800 uppercase tracking-tighter">Statistik 7 Hari Terakhir</p>
+                                </div>
+                                <i class="fa-solid fa-chart-line text-blue-200 text-2xl"></i>
+                            </div>
+                            <div class="h-64 relative w-full">
+                                <canvas id="attendanceChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Menu Cepat -->
+                        <div class="space-y-4">
+                            <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2">Aksi Cepat</h4>
+                            <div class="grid grid-cols-1 gap-3">
+                                ${[
+                                    { icon: 'fa-file-invoice', label: 'Cetak Laporan', view: 'reports', color: 'blue' },
+                                    { icon: 'fa-book-open', label: 'Data Mapel', view: 'mapel', color: 'indigo' },
+                                    { icon: 'fa-user-plus', label: 'Tambah Siswa', view: 'students', color: 'emerald' }
+                                ].map(btn => `
+                                    <button onclick="window.setView('${btn.view}')" class="bg-white border border-slate-100 p-6 rounded-[2rem] flex items-center gap-5 hover:bg-slate-50 hover:shadow-lg transition-all group text-left">
+                                        <div class="w-12 h-12 bg-${btn.color}-50 text-${btn.color}-600 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                                            <i class="fa-solid ${btn.icon}"></i>
+                                        </div>
+                                        <span class="font-black text-[11px] uppercase tracking-widest text-slate-700">${btn.label}</span>
+                                        <i class="fa-solid fa-chevron-right ml-auto text-slate-300 group-hover:translate-x-1 transition-transform"></i>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
             
             if (v === 'input') {
                 const students = window.appState.students
@@ -772,7 +874,72 @@
             
             if (v === 'history') {
                 const historyJournals = window.appState.journals.filter(j => j.semester === curSem && j.tanggal.startsWith(window.appState.historyMonth));
-                return `<div class="space-y-6 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Riwayat Smt ${curSem}</h4><div class="flex flex-wrap items-center gap-4 text-left"><input type="month" value="${window.appState.historyMonth}" onchange="window.appState.historyMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-4 py-3 font-black outline-none border-none text-xs text-left"><div class="flex gap-2 text-center text-center"><button onclick="window.exportFormal('journals', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">CSV</button><button onclick="window.exportFormal('journals', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">PDF</button></div></div></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] border shadow-sm overflow-hidden text-left text-left"><div class="overflow-x-auto custom-scroll text-left"><table class="w-full text-left text-[11px] text-left"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 text-left text-left"><tr><th class="py-5 px-4 text-left text-left">Tgl</th><th class="py-5 px-4 text-left">Jam</th><th class="py-5 px-4 text-center">Kelas</th><th class="py-5 px-4 text-left">Mapel</th><th class="py-5 px-4 text-center">Aksi</th></tr></thead><tbody class="divide-y text-left">${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `<tr class="text-left text-left"><td class="py-5 px-4 font-black text-left">${j.tanggal}</td><td class="py-5 px-4 font-black text-left text-left">${j.jam_ke}</td><td class="py-5 px-4 text-center font-black text-center text-center">${j.kelas_mengajar}</td><td class="py-5 px-4 uppercase text-blue-600 font-black text-left text-left text-left">${j.mata_pelajaran}</td><td class="py-5 px-4 text-center text-center text-center"><button onclick="window.deleteDocData('journals', '${j.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></td></tr>`).join('')}</tbody></table>${historyJournals.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center">Data Tidak Ditemukan</p>' : ''}</div></div></div>`;
+                return `
+                <div class="space-y-6 animate-fadeIn text-left">
+                    <div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left">
+                        <h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Data Riwayat Smt ${curSem}</h4>
+                        <div class="flex flex-wrap items-center gap-4 text-left">
+                            <input type="month" value="${window.appState.historyMonth}" onchange="window.appState.historyMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-4 py-3 font-black outline-none border-none text-xs text-left">
+                            <div class="flex gap-2 text-center text-center">
+                                <button onclick="window.exportFormal('journals', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">Ekspor CSV</button>
+                                <button onclick="window.exportFormal('journals', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase text-center">Cetak PDF</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        ${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `
+                        <div class="bg-white rounded-[2.5rem] p-6 md:p-8 border shadow-sm group hover:shadow-xl transition-all relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                            <div class="flex flex-col md:flex-row justify-between gap-6">
+                                <div class="flex-grow space-y-4">
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <span class="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">${j.tanggal}</span>
+                                        <span class="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">Jam ${j.jam_ke}</span>
+                                        <span class="bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">Kelas ${j.kelas_mengajar}</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <h5 class="text-xl font-black uppercase tracking-tighter text-slate-900 leading-tight">${j.mata_pelajaran}</h5>
+                                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tujuan Pembelajaran (TP)</p>
+                                            <p class="text-xs font-semibold text-slate-600 leading-relaxed">${j.tujuan_pembelajaran || '-'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-center">
+                                            <p class="text-sm font-black text-blue-600">${j.hadir}</p>
+                                            <p class="text-[8px] font-black text-slate-400 uppercase">Hadir</p>
+                                        </div>
+                                        <div class="bg-sky-50/50 p-3 rounded-xl border border-sky-100 text-center">
+                                            <p class="text-sm font-black text-sky-600">${j.izin||0}</p>
+                                            <p class="text-[8px] font-black text-slate-400 uppercase">Izin</p>
+                                        </div>
+                                        <div class="bg-amber-50/50 p-3 rounded-xl border border-amber-100 text-center">
+                                            <p class="text-sm font-black text-amber-600">${j.sakit||0}</p>
+                                            <p class="text-[8px] font-black text-slate-400 uppercase">Sakit</p>
+                                        </div>
+                                        <div class="bg-rose-50/50 p-3 rounded-xl border border-rose-100 text-center">
+                                            <p class="text-sm font-black text-rose-600">${j.alpa}</p>
+                                            <p class="text-[8px] font-black text-slate-400 uppercase">Alpa</p>
+                                        </div>
+                                    </div>
+                                    ${j.catatan ? `
+                                    <div class="pt-2">
+                                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Catatan Tambahan</p>
+                                        <p class="text-xs italic text-slate-500">"${j.catatan}"</p>
+                                    </div>` : ''}
+                                </div>
+                                <div class="flex md:flex-col justify-end gap-2">
+                                    <button onclick="window.deleteDocData('journals', '${j.id}')" class="bg-rose-50 text-rose-500 w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        `).join('')}
+                        ${historyJournals.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center">Data Jurnal Tidak Ditemukan</p>' : ''}
+                    </div>
+                </div>`;
             }
 
             if (v === 'reports') {
