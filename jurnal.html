@@ -75,7 +75,8 @@
             html5QrCode: null,
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
-            scannerLock: false // Lock to prevent spam during processing
+            scannerLock: false,
+            scanSuccessPopup: { show: false, studentName: '' } // Popup State
         };
 
         // --- 3. UI HELPERS ---
@@ -311,7 +312,7 @@
             document.body.removeChild(tempDiv); const content = await zip.generateAsync({type:"blob"}); saveAs(content, "Database_QR_Siswa.zip"); window.showNotif("Selesai");
         };
 
-        // --- 9. SCANNER (OPTIMIZED CONTINUOUS SCANNING) ---
+        // --- 9. SCANNER (OPTIMIZED CONTINUOUS RAPID SCANNING) ---
         window.startScanner = async () => {
             const container = document.getElementById('reader');
             if (!container || window.appState.isScannerStarting) return;
@@ -327,7 +328,7 @@
                 window.appState.html5QrCode = new window.Html5Qrcode("reader");
                 
                 const config = { 
-                    fps: 15, 
+                    fps: 20, 
                     qrbox: (viewfinderWidth, viewfinderHeight) => {
                         const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
                         const qrboxSize = Math.floor(minEdge * 0.7);
@@ -343,7 +344,6 @@
                     { facingMode: "environment" }, 
                     config, 
                     async (text) => {
-                        // Prevent multi-triggering while processing or scanning the same card
                         if (window.appState.scannerLock) return;
 
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
@@ -356,25 +356,33 @@
                             );
 
                             if (!isAlreadyPresent) {
-                                window.appState.scannerLock = true; // Lock scanning
+                                window.appState.scannerLock = true;
                                 await window.markAttendance(student.id, 'Hadir');
-                                window.showNotif(`Berhasil: ${student.nama_siswa}`);
+                                
+                                // UI Popup Logic
+                                window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
+                                window.renderApp();
+
                                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                                 
-                                // Unlock after 2 seconds to allow next student
-                                setTimeout(() => {
+                                // Stop scanner while popup is active to prevent noise/spam
+                                await window.appState.html5QrCode.stop();
+
+                                setTimeout(async () => {
+                                    window.appState.scanSuccessPopup.show = false;
                                     window.appState.scannerLock = false;
-                                }, 2500);
+                                    window.renderApp();
+                                    // Auto restart camera
+                                    await window.startScanner();
+                                }, 2000);
                             } else {
-                                // Already present: quiet lock to avoid spamming "already here"
                                 window.appState.scannerLock = true;
-                                window.showNotif(`${student.nama_siswa} sudah absen hari ini`, "warning");
+                                window.showNotif(`${student.nama_siswa} sudah presensi hari ini`, "warning");
                                 setTimeout(() => { window.appState.scannerLock = false; }, 3000);
                             }
                         } else {
-                            // Unknown QR
                             window.appState.scannerLock = true;
-                            window.showNotif("QR tidak dikenal!", "error");
+                            window.showNotif("QR Code tidak dikenal", "error");
                             setTimeout(() => { window.appState.scannerLock = false; }, 2000);
                         }
                     }
@@ -875,15 +883,34 @@
 
             if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left h-full flex flex-col overflow-hidden text-left text-left"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left text-left text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left text-left text-left text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan</button></form></div><div class="space-y-2 overflow-y-auto custom-scroll flex-grow pb-10 text-left text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
             
-            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn text-left space-y-8 overflow-y-auto custom-scroll h-full pr-1 pb-10 text-left text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-6 text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-4 text-left leading-none text-slate-800 text-left text-left text-left">Profil Guru</h4><div class="space-y-4 text-left text-left text-left">
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left"></div></div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left"></div></div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left"></div></div>
-                <div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left"></div>
-                <div class="space-y-2 border-t pt-4 text-left text-left text-left text-left text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left text-left text-left text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left text-left text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left text-left text-left text-left text-left text-left text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left text-left text-left">KLS ${k}</span></label>`).join('')}</div></div>
-                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left text-left text-left text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-left text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
+            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn text-left space-y-8 overflow-y-auto custom-scroll h-full pr-1 pb-10 text-left text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-4 text-left leading-none text-slate-800 text-left text-left text-left text-left text-left text-left text-left text-left">Profil Guru</h4><div class="space-y-4 text-left text-left text-left text-left text-left">
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div></div>
+                <div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left text-left text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left text-left text-left text-left text-left text-left text-left text-left text-left"></div>
+                <div class="space-y-2 border-t pt-4 text-left text-left text-left text-left text-left text-left text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left text-left text-left text-left text-left text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left text-left text-left text-left text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left text-left text-left text-left text-left text-left text-left text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left text-left text-left text-left">KLS ${k}</span></label>`).join('')}</div></div>
+                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left text-left text-left text-left text-left text-left text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left text-left text-left text-left text-left text-left text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Bersihkan Database</button></div></div></div>`;
             
-            if (v === 'scanner') return `<div class="max-w-md mx-auto animate-fadeIn text-center"><div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full text-center text-center text-center"><div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center text-center"></div><p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center text-center">Arahkan kamera ke QR Siswa</p><button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center text-center">Aktifkan Kamera</button></div></div>`;
+            if (v === 'scanner') return `
+                <div class="max-w-md mx-auto animate-fadeIn text-center relative h-full">
+                    <div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full relative overflow-hidden">
+                        <div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0"></div>
+                        
+                        <!-- Success Popup Overlay -->
+                        ${window.appState.scanSuccessPopup.show ? `
+                        <div class="absolute inset-x-10 top-10 aspect-square rounded-[2.5rem] bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-[110] animate-fadeIn">
+                            <div class="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center text-4xl mb-4 shadow-lg scale-110 animate-bounce">
+                                <i class="fa-solid fa-check"></i>
+                            </div>
+                            <h5 class="text-xs font-black uppercase text-slate-800 mb-1 tracking-tight px-4 text-center">${window.appState.scanSuccessPopup.studentName}</h5>
+                            <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Berhasil Presensi</p>
+                        </div>
+                        ` : ''}
+
+                        <p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none">Arahkan kamera ke QR Siswa</p>
+                        <button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Aktifkan Kamera</button>
+                    </div>
+                </div>`;
             
             if (v === 'info') return `<div class="max-w-3xl mx-auto animate-fadeIn h-full overflow-y-auto custom-scroll pr-1 pb-16">
                 <div class="bg-white rounded-[3.5rem] p-10 border shadow-sm space-y-12">
@@ -892,33 +919,33 @@
                             <i class="fa-solid fa-graduation-cap"></i>
                         </div>
                         <h4 class="font-black text-3xl uppercase tracking-tighter mb-2 text-slate-800 leading-none">Jurnal Guru <span class="text-blue-600 text-4xl">PRO</span></h4>
-                        <p class="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em]">The Ultimate Digital Classroom Management</p>
+                        <p class="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em]">Otomasi & Digitalisasi Administrasi Kelas</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div class="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 relative overflow-hidden group">
                             <div class="absolute top-0 right-0 w-24 h-24 bg-blue-100/50 rounded-bl-[5rem] -mr-10 -mt-10 transition-all group-hover:scale-110"></div>
-                            <h5 class="font-black uppercase text-blue-600 text-xs mb-4 tracking-widest flex items-center gap-2"><i class="fa-solid fa-rocket"></i> Visi Modern</h5>
-                            <p class="text-sm text-slate-600 font-medium leading-relaxed">Menghilangkan hambatan administratif secara total. Jurnal Guru PRO hadir untuk mengembalikan waktu berharga Anda agar fokus pada inspirasi dan pertumbuhan setiap murid di kelas.</p>
+                            <h5 class="font-black uppercase text-blue-600 text-xs mb-4 tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> Efisiensi Tanpa Batas</h5>
+                            <p class="text-sm text-slate-600 font-medium leading-relaxed">Dirancang untuk memangkas waktu administratif yang melelahkan. Jurnal Guru PRO memberikan ruang lebih bagi Anda untuk membangun koneksi bermakna dengan setiap murid di kelas.</p>
                         </div>
                         <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-10 rounded-[3rem] text-white shadow-xl">
-                            <h5 class="font-black uppercase text-blue-100 text-xs mb-4 tracking-widest">Status Sistem</h5>
+                            <h5 class="font-black uppercase text-blue-100 text-xs mb-4 tracking-widest">Infrastruktur Sistem</h5>
                             <div class="flex items-center gap-4 mb-4">
-                                <span class="text-4xl font-black">2.8</span>
-                                <div class="bg-white/20 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter">Enterprise Edition</div>
+                                <span class="text-4xl font-black">2.9</span>
+                                <div class="bg-white/20 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter">Premium Core</div>
                             </div>
-                            <p class="text-white/80 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> Real-time Cloud Data Enabled</p>
+                            <p class="text-white/80 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-shield-halved"></i> Google Cloud Secure Storage</p>
                         </div>
                     </div>
 
                     <div class="space-y-8">
-                        <h5 class="font-black uppercase text-slate-800 text-center text-xs tracking-[0.4em]">Integrated Core Modules</h5>
+                        <h5 class="font-black uppercase text-slate-800 text-center text-xs tracking-[0.4em]">Core Technology Modules</h5>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             ${[
-                                {icon: 'fa-database', t: 'Data Core', d: 'Manajemen basis data siswa & kurikulum yang presisi.'},
-                                {icon: 'fa-qrcode', t: 'Rapid Scan', d: 'Teknologi presensi QR instan tanpa perlu reset manual.'},
-                                {icon: 'fa-layer-group', t: 'Sync Journal', d: 'Sinkronisasi otomatis antara absen dan administrasi harian.'},
-                                {icon: 'fa-file-pdf', t: 'Smart Export', d: 'Laporan administratif siap cetak hanya dengan satu klik.'}
+                                {icon: 'fa-database', t: 'Data Core', d: 'Manajemen basis data siswa dan kurikulum dengan presisi tinggi.'},
+                                {icon: 'fa-qrcode', t: 'Rapid Scan', d: 'Teknologi presensi QR instan dengan alur otomatis tanpa henti.'},
+                                {icon: 'fa-microchip', t: 'Auto Sync', d: 'Integrasi otomatis data presensi ke dalam administrasi harian.'},
+                                {icon: 'fa-file-pdf', t: 'Smart Export', d: 'Hasilkan laporan administratif formal dalam hitungan detik.'}
                             ].map(item => `
                                 <div class="text-center p-8 bg-white border border-slate-50 rounded-[2.5rem] hover:shadow-xl hover:border-blue-100 transition-all duration-300">
                                     <div class="text-blue-600 text-2xl mb-4"><i class="fa-solid ${item.icon}"></i></div>
@@ -930,7 +957,7 @@
                     </div>
 
                     <div class="pt-12 border-t border-slate-100 flex flex-col items-center">
-                        <p class="text-[10px] font-black uppercase text-slate-400 mb-8 tracking-[0.3em]">Connect With Developer</p>
+                        <p class="text-[10px] font-black uppercase text-slate-400 mb-8 tracking-[0.3em]">Developer Partnership</p>
                         <div class="flex justify-center gap-5 mb-12">
                             <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="w-16 h-16 bg-rose-50 text-rose-500 rounded-[1.5rem] flex items-center justify-center text-3xl hover:bg-rose-500 hover:text-white transition-all shadow-md"><i class="fa-brands fa-instagram"></i></a>
                             <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="w-16 h-16 bg-slate-100 text-slate-800 rounded-[1.5rem] flex items-center justify-center text-3xl hover:bg-slate-800 hover:text-white transition-all shadow-md"><i class="fa-brands fa-tiktok"></i></a>
@@ -938,7 +965,7 @@
                         </div>
                         <div class="text-center bg-slate-50 py-6 px-12 rounded-[2rem] border">
                             <h5 class="text-base font-black text-slate-800 uppercase tracking-tighter">Mohamad Rizki, S.Pd.,Gr.</h5>
-                            <p class="text-[9px] font-black text-blue-600 uppercase mt-2 tracking-widest">Innovator & Fullstack System Architect</p>
+                            <p class="text-[9px] font-black text-blue-600 uppercase mt-2 tracking-widest">Innovative Educator & Fullstack System Architect</p>
                         </div>
                     </div>
                 </div>
