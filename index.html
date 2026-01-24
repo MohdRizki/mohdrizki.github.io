@@ -1,540 +1,901 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Jurnal Guru - Digitalisasi Administrasi</title>
+<!doctype html>
+<html lang="id" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1024">
+  <title>ReezApps - Solusi Administrasi Cerdas Guru Indonesia</title>
+  
+  <link rel="preconnect" href="https://i.imgur.com">
+  <link rel="preload" as="image" href="https://i.imgur.com/XZ3ol3O.png" fetchpriority="high">
+  <link rel="preload" as="image" href="https://i.imgur.com/dVmz7Vb.png" fetchpriority="high">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    /* Dasar & Reset */
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     
-    <!-- CSS & Libraries -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    :root {
+      --primary: #3b82f6;
+      --accent: #60a5fa;
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --ios-blur: blur(25px) saturate(180%);
+    }
+
+    html, body { 
+      height: 100%; 
+      overflow: hidden; 
+      background: #01040a;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* MODERN MESH GRADIENT BACKGROUND */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      filter: blur(100px);
+      opacity: 0.45;
+      pointer-events: none;
+    }
+    .mesh-ball {
+      position: absolute;
+      border-radius: 50%;
+      animation: meshFloat 25s infinite alternate ease-in-out;
+    }
+    .ball-1 { width: 80vw; height: 80vw; background: radial-gradient(circle, #1e40af, transparent); top: -20%; left: -10%; }
+    .ball-2 { width: 70vw; height: 70vw; background: radial-gradient(circle, #701a75, transparent); bottom: -15%; right: -5%; animation-delay: -5s; }
+
+    @keyframes meshFloat {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(40px, 30px) scale(1.1); }
+    }
+
+    /* JAM & HARI & TANGGAL WIDGET */
+    .time-widget {
+      position: fixed;
+      top: 30px;
+      right: 40px;
+      z-index: 500;
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 14px 24px;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      pointer-events: none;
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    body.focused .time-widget {
+      opacity: 0;
+      transform: translateY(-20px);
+      pointer-events: none;
+    }
+
+    .widget-day-date {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--primary);
+      margin-bottom: 4px;
+      display: flex;
+      gap: 8px;
+    }
+    .widget-time {
+      font-size: 1.4rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    /* QUICK ACCESS BUTTON (THREE DOTS) */
+    .quick-access-trigger {
+        position: fixed;
+        top: 30px;
+        left: 40px;
+        z-index: 500;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.4s ease;
+    }
+    .quick-access-trigger:hover {
+        background: var(--primary);
+        transform: scale(1.05);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+    }
+    body.focused .quick-access-trigger {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(-20px);
+    }
+
+    /* SECTIONS */
+    .page-section {
+      display: none;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      z-index: 10;
+      animation: sectionFade 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+    .page-section.active { display: flex; flex-direction: column; align-items: center; }
+
+    #aboutPage, #morePage, #listMenuPage { overflow-y: auto; height: 100vh; padding: 6rem 0 12rem 0; scrollbar-width: none; }
+
+    @keyframes sectionFade {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* HERO AREA */
+    .hero-container {
+      text-align: center;
+      transition: all 1s cubic-bezier(0.23, 1, 0.32, 1);
+      padding: 3rem 1.5rem 0 1.5rem;
+      width: 100%;
+      max-width: 900px;
+      z-index: 20;
+    }
+
+    .brand-id {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .brand-logo-img {
+        width: 55px;
+        height: 55px;
+        filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.6));
+    }
+
+    .brand-name {
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.7em;
+        color: var(--primary);
+        text-indent: 0.7em;
+    }
+
+    .hero-title {
+      font-size: clamp(1.8rem, 5vw, 2.6rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      background: linear-gradient(180deg, #FFFFFF 30%, #60A5FA 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1rem;
+    }
+
+    .hero-desc {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: clamp(0.9rem, 2vw, 1.1rem);
+        max-width: 540px;
+        margin: 0 auto;
+        line-height: 1.5;
+        font-weight: 500;
+    }
+
+    /* INTERACTIVE ZONE */
+    .interactive-zone {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end; 
+      width: 100%;
+      flex: 1;
+      transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 100;
+      padding-bottom: 0.5rem;
+    }
+
+    body.focused .hero-container {
+      opacity: 0.05;
+      transform: translateY(-40px) scale(0.92);
+      pointer-events: none;
+    }
+    body.focused .interactive-zone {
+      transform: translateY(-200px);
+    }
+
+    .character-wrapper {
+      position: relative;
+      cursor: pointer;
+      z-index: 150;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+    }
+
+    .character-img {
+      width: clamp(280px, 45vw, 400px);
+      filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.8));
+      animation: figureFloat 6s ease-in-out infinite;
+      transform-origin: bottom center;
+      pointer-events: none;
+    }
+
+    @keyframes figureFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+
+    /* BUBBLE GLASS */
+    .speech-bubble {
+      position: absolute;
+      top: 60px; 
+      left: 78%; 
+      transform: scale(0);
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(15px) saturate(180%);
+      padding: 10px 16px;
+      border-radius: 20px 20px 20px 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+      width: 150px;
+      opacity: 0;
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 200;
+      pointer-events: none;
+    }
+    .speech-bubble.active { opacity: 1; transform: scale(1); }
+    .bubble-text { font-size: 0.72rem; font-weight: 800; text-align: center; color: #fff; line-height: 1.4; }
+
+    /* TOMBOL X */
+    .close-focus-btn {
+      position: absolute;
+      top: 130px; 
+      right: 40px; 
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.4s ease;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 220;
+    }
+    body.focused .close-focus-btn { opacity: 0.8; pointer-events: all; }
+    .close-focus-btn:hover { background: #ef4444; border-color: #ef4444; transform: rotate(90deg) scale(1.1); opacity: 1; }
+
+    /* ARC MENU */
+    .arc-menu {
+      position: absolute;
+      top: 48%; 
+      left: 50%;
+      z-index: 50; 
+    }
+    .menu-item {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0);
+      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      text-decoration: none;
+    }
+    .active-menu .menu-item { opacity: 1; pointer-events: all; }
+
+    .menu-icon {
+      width: 90px; 
+      height: 90px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.08));
+      border: 1px solid var(--glass-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .menu-icon svg {
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        width: 36px; height: 36px;
+    }
+
+    .menu-item-text {
+        position: absolute;
+        opacity: 0;
+        font-size: 0.55rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-align: center;
+        color: #fff;
+        padding: 0 8px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        transform: scale(0.8);
+        pointer-events: none;
+        line-height: 1.2;
+    }
+
+    .menu-item:hover .menu-icon {
+      background: var(--c, #3b82f6);
+      transform: translateY(-8px) scale(1.1);
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px var(--c, #3b82f6);
+    }
+    .menu-item:hover .menu-icon svg { opacity: 0; transform: scale(0.5); }
+    .menu-item:hover .menu-item-text { opacity: 1; transform: scale(1); }
+
+    .menu-item:nth-child(1) .menu-icon { --c: #3b82f6; }
+    .menu-item:nth-child(2) .menu-icon { --c: #10b981; }
+    .menu-item:nth-child(3) .menu-icon { --c: #f59e0b; }
+    .menu-item:nth-child(4) .menu-icon { --c: #ef4444; }
+    .menu-item:nth-child(5) .menu-icon { --c: #8b5cf6; } 
+    .menu-item:nth-child(6) .menu-icon { --c: #a855f7; }
+    .menu-item:nth-child(7) .menu-icon { --c: #94a3b8; }
+
+    /* MODERN FLOATING NAV DOCK */
+    .dock-container {
+      position: fixed;
+      bottom: 35px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(25px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px;
+      border-radius: 30px;
+      display: flex;
+      gap: 10px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.6), inset 0 0 10px rgba(255,255,255,0.05);
+      transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    body.is-home .dock-container,
+    body.focused .dock-container {
+      bottom: -100px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .dock-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 20px;
+      color: rgba(255, 255, 255, 0.4);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .dock-item svg { width: 24px; height: 24px; transition: all 0.3s ease; }
+    .dock-item span {
+      position: absolute;
+      bottom: -22px;
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0;
+      transform: translateY(5px);
+      transition: all 0.3s ease;
+      color: var(--primary);
+    }
+    .dock-item:hover { color: #fff; background: rgba(255, 255, 255, 0.05); transform: translateY(-5px); }
+    .dock-item:hover svg { transform: scale(1.1); color: var(--primary); }
+    .dock-item:hover span { opacity: 1; transform: translateY(0); }
+    .dock-item.active { color: var(--primary); background: rgba(59, 130, 246, 0.1); }
+
+    .footer-copy { 
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px; 
+      font-weight: 600; 
+      letter-spacing: 0.15em; 
+      opacity: 0.2; 
+      text-align: center;
+      width: 100%;
+      pointer-events: none;
+    }
+
+    /* PREMIUM ABOUT PAGE - COMPACT STACKED LAYOUT */
+    .about-container {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 2rem;
+    }
+
+    .premium-profile-card {
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+        backdrop-filter: blur(50px) saturate(150%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 60px;
+        padding: 4rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        box-shadow: 0 100px 150px rgba(0,0,0,0.8);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .profile-visual-box {
+        position: relative;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 2.5rem;
+    }
+
+    .avatar-wrapper {
+        width: 260px;
+        height: 260px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .avatar-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        z-index: 2;
+        filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));
+    }
+
+    .avatar-bg-glow {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        filter: blur(60px);
+        opacity: 0.2;
+        border-radius: 50%;
+        z-index: 1;
+    }
+
+    /* CONSISTENT SOCIAL STACK */
+    .social-stack {
+        display: flex;
+        gap: 1.5rem;
+        z-index: 20;
+        position: relative;
+        pointer-events: auto;
+    }
+
+    .social-link-btn {
+      width: 54px; height: 54px; border-radius: 18px;
+      background: rgba(255,255,255,0.04); 
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      color: rgba(255,255,255,0.6);
+      cursor: pointer;
+    }
+
+    .social-link-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+    /* CONSISTENT HOVER EFFECTS */
+    .social-link-btn:hover { 
+        transform: translateY(-8px); 
+        color: #fff;
+        border-color: rgba(255,255,255,0.3);
+    }
+
+    /* BRAND SPECIFIC HOVER */
+    .social-link-btn.ig:hover { 
+        background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); 
+        border-color: transparent;
+        box-shadow: 0 10px 25px rgba(220, 39, 67, 0.3);
+    }
+    .social-link-btn.tk:hover { 
+        background: #000; 
+        border-color: #333;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    .social-link-btn.yt:hover { 
+        background: #ff0000; 
+        border-color: transparent;
+        box-shadow: 0 10px 25px rgba(255, 0, 0, 0.3);
+    }
+
+    .profile-details { width: 100%; max-width: 600px; }
+    .profile-details h3 { font-size: 2rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+    .profile-details .role { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.6em; color: var(--primary); margin-bottom: 2rem; display: block; }
+
+    .bio-content { color: rgba(255,255,255,0.5); font-size: 0.95rem; line-height: 1.8; margin-bottom: 3rem; }
+    .bio-content strong { color: #fff; font-weight: 700; }
+
+    .card-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 2rem;
+      text-align: left;
+    }
+    .card-info-item h4 { font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    .card-info-item h4 span { color: var(--primary); opacity: 0.6; font-size: 0.6rem; }
+    .card-info-item p { font-size: 0.8rem; color: rgba(255,255,255,0.4); line-height: 1.5; }
+
+    /* LIST MENU PAGE STYLES */
+    .list-menu-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        width: 100%;
+        max-width: 800px;
+        padding: 0 2rem;
+    }
+    .list-menu-item {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+    .list-menu-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--primary);
+        transform: scale(1.02);
+    }
+    .list-icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: rgba(59, 130, 246, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary);
+    }
+    .list-menu-item h4 {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #fff;
+    }
+
+    /* MORE APPS GRID */
+    .apps-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2rem;
+        width: 100%;
+        max-width: 1100px;
+        padding: 0 2rem;
+    }
+    .app-card-placeholder {
+        background: rgba(255,255,255,0.02);
+        border: 1px dashed rgba(255,255,255,0.08);
+        border-radius: 40px;
+        padding: 3rem;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1.5rem; transition: all 0.5s ease; opacity: 0.4;
+    }
+    .app-card-placeholder:hover { opacity: 1; border-style: solid; background: rgba(255,255,255,0.04); transform: translateY(-10px); }
+    .app-card-placeholder .icon-slot { width: 60px; height: 60px; border-radius: 20px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.2); font-size: 1.5rem; }
+    .app-card-placeholder h5 { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; color: rgba(255,255,255,0.4); }
+
+    #sparkle-container { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+    .sparkle { position: absolute; width: 2px; height: 2px; background: white; border-radius: 50%; opacity: 0; animation: sparkleRise 5s infinite ease-in-out; }
+    @keyframes sparkleRise { 0% { transform: translateY(0) scale(0); opacity: 0; } 40% { opacity: 0.5; } 100% { transform: translateY(-150px) scale(1.2); opacity: 0; } }
+  </style>
+ </head>
+ <body class="is-home">
+  <div id="sparkle-container"></div>
+
+  <!-- JAM & HARI & TANGGAL WIDGET -->
+  <div class="time-widget" id="timeWidget">
+    <div class="widget-day-date" id="displayFullDate">Memuat...</div>
+    <div class="widget-time" id="displayTime">00:00:00</div>
+  </div>
+
+  <!-- QUICK ACCESS TRIGGER -->
+  <div class="quick-access-trigger" id="quickAccessBtn" onclick="navigateTo('list')" title="Akses Cepat (Daftar)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+  </div>
+
+  <div class="page-wrapper">
+   <div class="bg-mesh">
+     <div class="mesh-ball ball-1"></div>
+     <div class="mesh-ball ball-2"></div>
+   </div>
+
+   <main class="main-content flex-1 flex flex-col items-center">
     
-    <!-- Libraries -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- HOME PAGE -->
+    <section id="homePage" class="page-section active">
+      <div class="hero-container" id="heroText">
+       <div class="brand-id">
+          <img src="https://i.imgur.com/Mw1UViI.png" alt="Logo" class="brand-logo-img">
+          <p class="brand-name">ReezApps Edu-Hub</p>
+       </div>
+       <h1 class="hero-title">Bekerja Lebih Cerdas<br>Mengajar Lebih Hebat</h1>
+       <p class="hero-desc">Ekosistem administrasi digital premium yang dirancang khusus untuk kenyamanan Bapak/Ibu Guru Indonesia.</p>
+      </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { initializeFirestore, collection, doc, setDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+      <div class="interactive-zone" id="interactZone">
+       <div class="arc-menu" id="arcMenu">
+        <a href="#" data-app="jurnal" target="_blank" class="menu-item"><div class="menu-icon"><svg class="fill-white/80" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><div class="menu-item-text">Jurnal Guru</div></div></a>
+        <a href="#" data-app="rapor" target="_blank" class="menu-item"><div class="menu-icon"><svg class="fill-white/80" viewBox="0 0 24 24"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><div class="menu-item-text">Input Rapor</div></div></a>
+        <a href="#" data-app="asesmen" target="_blank" class="menu-item"><div class="menu-icon"><svg class="fill-white/80" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/><path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/></svg><div class="menu-item-text">Asesmen</div></div></a>
+        <a href="#" data-app="remedial" target="_blank" class="menu-item"><div class="menu-icon"><svg class="fill-white/80" viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg><div class="menu-item-text">Remedial</div></div></a>
+        <a href="#" data-app="cekusia" target="_blank" class="menu-item"><div class="menu-icon"><svg class="fill-white/80" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/></svg><div class="menu-item-text">Cek Usia</div></div></a>
+        <div onclick="navigateTo('about')" class="menu-item cursor-pointer"><div class="menu-icon"><svg class="fill-white/80" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg><div class="menu-item-text">Tentang</div></div></div>
+        <div onclick="navigateTo('more')" class="menu-item cursor-pointer"><div class="menu-icon"><svg class="fill-white/90" viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg><div class="menu-item-text">Lainnya</div></div></div>
+       </div>
 
-        // --- 1. FIREBASE CONFIG ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyDU04V8KpMbBc28-bpP9PM_LQP06Kx9Cwk",
-            authDomain: "remedial-tracker.firebaseapp.com",
-            projectId: "remedial-tracker",
-            storageBucket: "remedial-tracker.firebasestorage.app",
-            messagingSenderId: "720679266176",
-            appId: "1:720679266176:web:95b19d6eb06cf6cd9c4365"
-        };
-        
-        const appId = 'jurnal-guru-pro'; 
-        const hubUrl = "https://sites.google.com/guru.sd.belajar.id/reezapps/home";
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+       <div class="character-wrapper" id="trigger">
+        <div class="speech-bubble" id="affirmationBubble"><p class="bubble-text" id="bubbleContent">Sentuh aku! ✨</p></div>
+        <button class="close-focus-btn" id="closeFocusBtn"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        <img src="https://i.imgur.com/XZ3ol3O.png" alt="Figur Guru" class="character-img" id="mainFigure">
+       </div>
+      </div>
+    </section>
 
-        // --- 2. GLOBAL STATE ---
-        window.appState = {
-            currentView: 'dashboard',
-            user: null,
-            teacherId: null, 
-            loading: true,
-            isAuthenticated: false,
-            isLoggingIn: false,
-            isScannerStarting: false,
-            loginError: '',
-            settings: { 
-                nama_guru: '', nip_guru: '', nama_sekolah: '', nama_kepsek: '', nip_kepsek: '', lokasi: '', semester: '1', tahun_ajaran: '2024/2025', kelas_diampu: [] 
-            },
-            students: [],
-            journals: [],
-            attendance: [], 
-            mapels: [],
-            holidays: [],
-            selectedKelas: '1',
-            selectedMapel: '',
-            selectedDate: new Date().toISOString().split('T')[0],
-            reportMonth: new Date().toISOString().slice(0, 7), 
-            sidebarCollapsed: false,
-            mobileMenuOpen: false,
-            scannerActive: false,
-            html5QrCode: null,
-            modal: { show: false, title: '', message: '', onConfirm: null },
-            qrModal: { show: false, student: null }
-        };
+    <!-- LIST MENU PAGE -->
+    <section id="listMenuPage" class="page-section">
+        <div class="text-center mb-12"><h2 class="hero-title">Akses Cepat</h2><p class="brand-name mt-2">Daftar Menu Standar</p></div>
+        <div class="list-menu-grid">
+            <a href="#" data-app="jurnal" target="_blank" class="list-menu-item"><div class="list-icon-box">📓</div><h4>Jurnal Guru</h4></a>
+            <a href="#" data-app="rapor" target="_blank" class="list-menu-item"><div class="list-icon-box">📊</div><h4>Input Rapor</h4></a>
+            <a href="#" data-app="asesmen" target="_blank" class="list-menu-item"><div class="list-icon-box">🔎</div><h4>Asesmen</h4></a>
+            <a href="#" data-app="remedial" target="_blank" class="list-menu-item"><div class="list-icon-box">📈</div><h4>Remedial</h4></a>
+            <a href="#" data-app="cekusia" target="_blank" class="list-menu-item"><div class="list-icon-box">📅</div><h4>Cek Usia</h4></a>
+            <div onclick="navigateTo('about')" class="list-menu-item cursor-pointer"><div class="list-icon-box">👤</div><h4>Tentang</h4></div>
+            <div onclick="navigateTo('more')" class="list-menu-item cursor-pointer"><div class="list-icon-box">➕</div><h4>Lainnya</h4></div>
+        </div>
+        <div class="mt-12"><button onclick="navigateTo('home')" class="px-8 py-3 bg-white/5 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all">Tutup</button></div>
+    </section>
 
-        // --- 3. UI HELPERS ---
-        window.showNotif = (msg, tipe = 'success') => {
-            const wadah = document.getElementById('notif-anchor');
-            if (!wadah) return;
-            const kotak = document.createElement('div');
-            kotak.className = `bg-white border-l-4 ${tipe === 'error' ? 'border-rose-500 text-rose-600' : 'border-blue-600 text-blue-600'} shadow-xl rounded-2xl p-4 animate-slideDown flex items-center gap-3 pointer-events-auto mb-2 w-72 z-[9999] text-left transition-all`;
-            kotak.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span class="text-[10px] font-black uppercase tracking-tight">${msg}</span>`;
-            wadah.appendChild(kotak);
-            setTimeout(() => { kotak.style.opacity='0'; setTimeout(()=>kotak.remove(), 400); }, 3000);
-        };
-
-        window.confirmAction = (title, message, onConfirm) => {
-            window.appState.modal = { show: true, title, message, onConfirm };
-            window.renderApp();
-        };
-
-        // --- 4. FIREBASE LISTENERS ---
-        window.initDataListeners = () => {
-            if (!auth.currentUser || !window.appState.teacherId) return;
-            const tId = window.appState.teacherId;
-            const userRef = (col) => collection(db, 'artifacts', appId, 'users', tId, col);
-            const profileRef = doc(db, 'artifacts', appId, 'users', tId, 'settings', 'profile');
-            
-            onSnapshot(profileRef, (snap) => { if (snap.exists()) { window.appState.settings = snap.data(); window.renderApp(); } });
-            onSnapshot(userRef('students'), (snap) => { window.appState.students = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
-            onSnapshot(userRef('journals'), (snap) => { window.appState.journals = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
-            onSnapshot(userRef('attendance'), (snap) => { window.appState.attendance = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
-            onSnapshot(userRef('mapels'), (snap) => { window.appState.mapels = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
-            onSnapshot(userRef('holidays'), (snap) => { window.appState.holidays = snap.docs.map(d => ({ id: d.id, ...d.data() })); window.renderApp(); });
-        };
-
-        // --- 5. AUTH ---
-        window.handlePinLogin = async (e) => {
-            e.preventDefault();
-            const pinValue = e.target.pin.value;
-            window.appState.isLoggingIn = true;
-            window.renderApp();
-            try {
-                const securityRef = collection(db, 'artifacts', appId, 'public', 'data', 'security');
-                const snapshot = await getDocs(securityRef);
-                let foundTeacherId = null;
-                snapshot.forEach(doc => { if (doc.data().pin?.toString() === pinValue) foundTeacherId = doc.id; });
-                if (foundTeacherId) {
-                    window.appState.teacherId = foundTeacherId;
-                    window.appState.isAuthenticated = true;
-                    window.initDataListeners();
-                    window.showNotif("Login Berhasil");
-                    await window.setView('dashboard');
-                } else { window.showNotif("Kode PIN Tidak Terdaftar!", "error"); }
-            } catch (err) { window.appState.loginError = "Gagal Verifikasi"; }
-            finally { window.appState.isLoggingIn = false; window.renderApp(); }
-        };
-
-        window.handleLogout = async () => {
-            await window.stopScanner();
-            window.appState.isAuthenticated = false;
-            window.appState.teacherId = null;
-            window.renderApp();
-            window.open(hubUrl, '_blank');
-        };
-
-        window.toggleSemester = async () => {
-            const newSem = window.appState.settings.semester === '1' ? '2' : '1';
-            await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), { ...window.appState.settings, semester: newSem });
-            window.showNotif(`Semester diubah ke ${newSem}`);
-        };
-
-        // --- 6. DATA ACTIONS ---
-        const getColRef = (col) => collection(db, 'artifacts', appId, 'users', window.appState.teacherId, col);
-
-        window.deleteDocData = (col, id) => {
-            window.confirmAction("Hapus Data", "Data akan dihapus permanen. Lanjutkan?", async () => {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, col, id));
-                window.showNotif("Terhapus");
-                window.appState.modal.show = false; window.renderApp();
-            });
-        };
-
-        window.handleBulkStudents = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const grade = formData.get('grade');
-            const namesText = formData.get('names');
-            let names = [...new Set(namesText.split('\n').map(n => n.trim()).filter(n => n.length > 0))];
-            const existing = window.appState.students.filter(s => s.kelas === grade).map(s => s.nama_siswa.toLowerCase());
-            const newNames = names.filter(n => !existing.includes(n.toLowerCase()));
-            if (newNames.length === 0) { window.showNotif("Nama sudah ada", "error"); return; }
-            const batch = writeBatch(db);
-            newNames.forEach(nama => { const newDoc = doc(getColRef('students')); batch.set(newDoc, { nama_siswa: nama, kelas: grade, createdAt: new Date().toISOString() }); });
-            await batch.commit(); e.target.reset(); window.showNotif(`${newNames.length} Siswa Tersimpan`);
-        };
-
-        window.handleSaveMapel = async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target).entries());
-            const isDup = window.appState.mapels.some(m => m.kelas === data.kelas && m.nama.toLowerCase() === data.nama_mapel.toLowerCase());
-            if (isDup) { window.showNotif("Mapel sudah ada", "error"); return; }
-            await addDoc(getColRef('mapels'), { kelas: data.kelas, nama: data.nama_mapel, tp: data.tujuan_pembelajaran.split('\n').filter(t => t.trim().length > 0) });
-            e.target.reset(); window.showNotif("Mapel Tersimpan");
-        };
-
-        window.handleSaveJournal = async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target).entries());
-            const isDup = window.appState.journals.some(j => j.tanggal === data.tanggal && j.kelas_mengajar === data.kelas_mengajar && j.jam_ke === data.jam_ke);
-            if (isDup) { window.showNotif("Jurnal jam ini sudah ada!", "error"); return; }
-            const isHoliday = window.appState.holidays.find(h => h.tanggal === data.tanggal);
-            if (isHoliday && !data.is_kerja_khusus) { window.showNotif("Hari Libur!", "error"); return; }
-            data.createdAt = new Date().toISOString(); data.semester = window.appState.settings.semester;
-            const classStudents = window.appState.students.filter(s => String(s.kelas) === String(data.kelas_mengajar));
-            const prev = window.appState.journals.find(j => j.tanggal === data.tanggal && j.kelas_mengajar === data.kelas_mengajar);
-            if (prev && data.jam_ke !== "1") {
-                data.hadir = prev.hadir; data.izin = prev.izin || 0; data.sakit = prev.sakit || 0; data.alpa = prev.alpa;
-            } else {
-                const attToday = window.appState.attendance.filter(a => a.date === data.tanggal && String(a.studentClass) === String(data.kelas_mengajar));
-                data.hadir = attToday.filter(a => a.status === 'Hadir').length; data.izin = attToday.filter(a => a.status === 'Izin').length;
-                data.sakit = attToday.filter(a => a.status === 'Sakit').length; data.alpa = classStudents.length - (data.hadir + data.izin + data.sakit);
-            }
-            await addDoc(getColRef('journals'), data); window.showNotif("Jurnal Tersimpan"); window.setView('history');
-        };
-
-        window.handleSaveHoliday = async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target).entries());
-            if (window.appState.holidays.some(h => h.tanggal === data.tanggal)) { window.showNotif("Tanggal sudah ada", "error"); return; }
-            await addDoc(getColRef('holidays'), data); e.target.reset(); window.showNotif("Libur Ditambahkan");
-        };
-
-        window.handleSaveSettings = async (e) => { 
-            e.preventDefault(); 
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries()); 
-            data.kelas_diampu = formData.getAll('kelas_diampu');
-            await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), data); 
-            window.showNotif("Profil Disimpan"); 
-        };
-
-        // --- 7. DANGER ZONE ---
-        window.handlePromotion = () => {
-            window.confirmAction("Naik Kelas", "Siswa akan naik tingkat. Data KELAS 6 akan diunduh otomatis lalu dihapus. Lanjutkan?", async () => {
-                const class6 = window.appState.students.filter(s => s.kelas === "6");
-                if (class6.length > 0) {
-                    let csv = "Nama,Kelas,H,I,S,A\n";
-                    class6.forEach(s => { const att = window.appState.attendance.filter(a => a.studentId === s.id); csv += `${s.nama_siswa},6,${att.filter(x=>x.status==='Hadir').length},${att.filter(x=>x.status==='Izin').length},${att.filter(x=>x.status==='Sakit').length},${att.filter(x=>x.status==='Alpa').length}\n`; });
-                    saveAs(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Arsip_Lulusan_Kelas6.csv`);
-                }
-                const batch = writeBatch(db);
-                window.appState.students.forEach(s => { const sRef = doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'students', s.id); if (s.kelas === "6") batch.delete(sRef); else batch.update(sRef, { kelas: String(Number(s.kelas) + 1) }); });
-                await batch.commit(); window.showNotif("Kenaikan Kelas Berhasil"); window.appState.modal.show = false; window.renderApp();
-            });
-        };
-
-        window.handleClearData = () => {
-            window.confirmAction("BERSIHKAN DATABASE", "Seluruh data akun Anda akan dihapus permanen! Lanjutkan?", async () => {
-                const collections = ['students', 'journals', 'attendance', 'mapels', 'holidays'];
-                for (const colName of collections) {
-                    const snap = await getDocs(getColRef(colName));
-                    const batch = writeBatch(db);
-                    snap.forEach(d => batch.delete(d.ref));
-                    await batch.commit();
-                }
-                window.showNotif("Database Bersih"); window.appState.modal.show = false; window.renderApp();
-            });
-        };
-
-        // --- 8. QR CODE ---
-        window.viewQR = (student) => {
-            window.appState.qrModal = { show: true, student };
-            window.renderApp();
-            setTimeout(() => {
-                const container = document.getElementById('qr-canvas-render');
-                if (container) {
-                    container.innerHTML = ""; 
-                    new QRCode(container, { text: student.nama_siswa, width: 256, height: 256, colorDark : "#1e293b", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
-                }
-            }, 300);
-        };
-
-        window.downloadQR = (name) => {
-            const container = document.getElementById('qr-canvas-render');
-            const canvas = container.querySelector('canvas');
-            const img = container.querySelector('img');
-            let src = canvas ? canvas.toDataURL("image/png") : (img ? img.src : "");
-            if (src) { const link = document.createElement('a'); link.href = src; link.download = `QR_${name.replace(/\s+/g, '_')}.png`; link.click(); } 
-            else window.showNotif("Gagal unduh QR", "error");
-        };
-
-        window.downloadBulkQR = async () => {
-            const zip = new JSZip(); const folder = zip.folder("QR_Siswa_Database");
-            window.showNotif("Memproses ZIP...", "warning");
-            const tempDiv = document.createElement('div'); tempDiv.style.position = "absolute"; tempDiv.style.left = "-9999px"; document.body.appendChild(tempDiv);
-            for (const s of window.appState.students) {
-                tempDiv.innerHTML = ""; new QRCode(tempDiv, { text: s.nama_siswa, width: 300, height: 300 });
-                await new Promise(r => setTimeout(r, 150));
-                const canvas = tempDiv.querySelector('canvas'); const img = tempDiv.querySelector('img');
-                let src = canvas ? canvas.toDataURL("image/png") : (img ? img.src : null);
-                if (src && src.includes("base64,")) folder.file(`KLS${s.kelas}_${s.nama_siswa.replace(/\s+/g, '_')}.png`, src.split(',')[1], {base64: true});
-            }
-            document.body.removeChild(tempDiv); const content = await zip.generateAsync({type:"blob"}); saveAs(content, "Database_QR_Siswa.zip"); window.showNotif("Selesai");
-        };
-
-        // --- 9. SCANNER (FIXED CAMERA ACCESS) ---
-        window.startScanner = async () => {
-            const container = document.getElementById('reader');
-            if (!container || window.appState.isScannerStarting) return;
-
-            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-                window.showNotif("HTTPS diperlukan untuk akses kamera.", "error");
-                return;
-            }
-
-            window.appState.isScannerStarting = true;
-            try {
-                await window.stopScanner();
-                window.appState.html5QrCode = new window.Html5Qrcode("reader");
-                
-                const config = { 
-                    fps: 10, 
-                    qrbox: (viewfinderWidth, viewfinderHeight) => {
-                        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                        const qrboxSize = Math.floor(minEdge * 0.7);
-                        return { width: qrboxSize, height: qrboxSize };
-                    },
-                    aspectRatio: 1.0,
-                    showTorchButtonIfSupported: true
-                };
-                
-                window.appState.scannerActive = true; 
-
-                await window.appState.html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    config, 
-                    async (text) => {
-                        const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
-                        if (student) {
-                            await window.markAttendance(student.id, 'Hadir');
-                            window.showNotif(`Hadir: ${student.nama_siswa}`);
-                            if (navigator.vibrate) navigator.vibrate(100);
-                        } else {
-                            window.showNotif("Siswa tidak ditemukan", "error");
-                        }
-                    }
-                );
-            } catch (err) { 
-                console.error("Camera Error:", err);
-                window.showNotif("Gagal akses kamera.", "error"); 
-                window.appState.scannerActive = false;
-            } finally { 
-                window.appState.isScannerStarting = false; 
-            }
-        };
-
-        window.stopScanner = async () => {
-            if (window.appState.html5QrCode) {
-                try { 
-                    if (window.appState.html5QrCode.isScanning) {
-                        await window.appState.html5QrCode.stop(); 
-                    }
-                    await window.appState.html5QrCode.clear(); 
-                } 
-                catch(e) { console.warn("Stop scanner warning:", e); } 
-                finally { 
-                    window.appState.html5QrCode = null; 
-                    window.appState.scannerActive = false; 
-                }
-            }
-        };
-
-        window.markAttendance = async (id, status = 'Hadir') => {
-            const today = window.appState.selectedDate;
-            const existing = window.appState.attendance.find(a => a.studentId === id && a.date === today);
-            const student = window.appState.students.find(s => s.id === id);
-            if (!student) return;
-            const data = { studentId: id, studentName: student.nama_siswa, studentClass: student.kelas, date: today, status, timestamp: new Date().toISOString(), semester: window.appState.settings.semester };
-            if (existing) await updateDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'attendance', existing.id), data);
-            else await addDoc(getColRef('attendance'), data);
-        };
-
-        // --- NEW: HADIR SEMUA ---
-        window.markAllPresent = async (kelas) => {
-            const students = window.appState.students.filter(s => String(s.kelas) === String(kelas));
-            if (students.length === 0) return;
-            window.showNotif("Memproses Presensi Bulk...");
-            const batch = writeBatch(db);
-            const today = window.appState.selectedDate;
-            
-            for (const s of students) {
-                const existing = window.appState.attendance.find(a => a.studentId === s.id && a.date === today);
-                const data = { studentId: s.id, studentName: s.nama_siswa, studentClass: s.kelas, date: today, status: 'Hadir', timestamp: new Date().toISOString(), semester: window.appState.settings.semester };
-                if (existing) batch.update(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'attendance', existing.id), data);
-                else batch.set(doc(getColRef('attendance')), data);
-            }
-            await batch.commit();
-            window.showNotif("Semua Siswa Hadir");
-        };
-
-        // --- 10. EXPORTS ---
-        window.exportFormal = (type, format) => {
-            const curSem = window.appState.settings.semester; const sets = window.appState.settings;
-            const filteredJournals = window.appState.journals.filter(j => j.semester === curSem);
-            if (format === 'csv') {
-                let csv = type === 'journals' ? "Tgl,Jam,Mapel,Kls,TP,H,I,S,A,Catatan,Smt\n" : "Nama,Kls,H,I,S,A,Smt\n";
-                if (type === 'journals') filteredJournals.forEach(j => csv += `${j.tanggal},${j.jam_ke},${j.mata_pelajaran},${j.kelas_mengajar},"${j.tujuan_pembelajaran}",${j.hadir},${j.izin||0},${j.sakit||0},${j.alpa},"${j.catatan||''}",${j.semester}\n`);
-                else window.appState.students.forEach(s => { const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem); csv += `${s.nama_siswa},${s.kelas},${att.filter(x=>x.status==='Hadir').length},${att.filter(x=>x.status==='Izin').length},${att.filter(x=>x.status==='Sakit').length},${att.filter(x=>x.status==='Alpa').length},${curSem}\n`; });
-                saveAs(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Laporan_Smt${curSem}_${type}.csv`);
-            } else {
-                const { jsPDF } = window.jspdf; const docPdf = new jsPDF(type === 'journals' ? 'l' : 'p', 'mm', 'a4');
-                docPdf.setFontSize(14); docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_sekolah.toUpperCase() || "JURNAL GURU", type === 'journals' ? 148 : 105, 15, {align:'center'});
-                docPdf.setFontSize(10); docPdf.text(`Semester: ${curSem} | TA: ${sets.tahun_ajaran}`, type === 'journals' ? 148 : 105, 22, {align:'center'});
-                if (type === 'journals') {
-                    const body = filteredJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map((j, i) => [i+1, j.tanggal, j.jam_ke, j.kelas_mengajar, j.mata_pelajaran, j.tujuan_pembelajaran, j.hadir, j.izin||0, j.sakit||0, j.alpa, j.catatan||'-']);
-                    docPdf.autoTable({ head: [['No', 'Tgl', 'Jam', 'Kls', 'Mapel', 'TP', 'H', 'I', 'S', 'A', 'Catatan']], body, startY: 30, styles: {fontSize: 7} });
-                } else {
-                    const body = window.appState.students.map((s, i) => { const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem); return [i+1, s.nama_siswa, s.kelas, att.filter(x=>x.status==='Hadir').length, att.filter(x=>x.status==='Izin').length, att.filter(x=>x.status==='Sakit').length, att.filter(x=>x.status==='Alpa').length]; });
-                    docPdf.autoTable({ head: [['No', 'Nama Siswa', 'Kls', 'H', 'I', 'S', 'A']], body, startY: 30 });
-                }
-                const finalY = docPdf.lastAutoTable.finalY + 15; const pW = type === 'journals' ? 297 : 210;
-                docPdf.setFont("helvetica", "normal"); docPdf.text("Mengetahui,", 30, finalY); docPdf.text("Kepala Sekolah", 30, finalY + 5); 
-                docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_kepsek || "...", 30, finalY + 22); docPdf.setFont("helvetica", "normal"); docPdf.text(`NIP. ${sets.nip_kepsek || "-"}`, 30, finalY + 27);
-                const ttm = `${sets.lokasi || "................"}, ${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
-                docPdf.text(ttm, pW - 80, finalY); docPdf.text("Wali Kelas", pW - 80, finalY + 5); 
-                docPdf.setFont("helvetica", "bold"); docPdf.text(sets.nama_guru || "...", pW - 80, finalY + 22); docPdf.setFont("helvetica", "normal"); docPdf.text(`NIP. ${sets.nip_guru || "-"}`, pW - 80, finalY + 27);
-                docPdf.save(`Laporan_Smt${curSem}_${type}.pdf`);
-            }
-        };
-
-        // --- 11. ROUTING ---
-        window.setView = async (v) => { 
-            await window.stopScanner(); 
-            window.appState.currentView = v; 
-            window.appState.mobileMenuOpen = false; 
-            window.renderApp(); 
-            lucide.createIcons();
-            if (v === 'scanner') {
-                setTimeout(() => { if (document.getElementById('reader')) window.startScanner(); }, 500);
-            }
-            if (v === 'dashboard') setTimeout(() => window.initChart(), 500);
-        };
-
-        window.initChart = () => {
-            const canvas = document.getElementById('attendanceChart'); if (!canvas) return;
-            const dates = [...new Set(window.appState.attendance.filter(a=>a.semester===window.appState.settings.semester).map(a => a.date))].sort().slice(-7);
-            const dataHadir = dates.map(d => window.appState.attendance.filter(a => a.date === d && a.status === 'Hadir').length);
-            if (window.myChart) window.myChart.destroy();
-            window.myChart = new Chart(canvas.getContext('2d'), { type: 'bar', data: { labels: dates, datasets: [{ label: 'Jumlah Hadir', data: dataHadir, backgroundColor: '#2563eb', borderRadius: 8 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
-        };
-
-        window.renderNavItem = (view, icon, label) => {
-            const active = window.appState.currentView === view; const collapsed = window.appState.sidebarCollapsed;
-            return `<button onclick="window.setView('${view}')" class="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'} w-full text-left outline-none border-none group">
-                <div class="w-6 text-center text-lg shrink-0"><i class="fa-solid ${icon}"></i></div>
-                <span class="text-[11px] font-black uppercase tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}">${label}</span>
-            </button>`;
-        };
-
-        window.renderApp = () => {
-            const root = document.getElementById('root');
-            if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Menghubungkan...</div>`; return; }
-            if (!window.appState.isAuthenticated) {
-                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-6 bg-slate-50"><div class="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Buka Sistem</button></form></div></div>`;
-                lucide.createIcons(); return;
-            }
-
-            const view = window.appState.currentView; const collapsed = window.appState.sidebarCollapsed;
-            root.innerHTML = `
-                <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden transition-all duration-500">
-                    <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100]"><h1 class="text-sm font-black uppercase tracking-tighter">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none"><i class="fa-solid fa-bars"></i></button></header>
-                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 ${collapsed ? 'w-24' : 'w-64'} w-full shrink-0 z-50 h-full relative overflow-hidden">
-                        <div class="hidden md:flex items-center gap-4 px-6 py-10 relative overflow-hidden shrink-0">
-                            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"><i class="fa-solid fa-graduation-cap"></i></div>
-                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 scale-0' : 'opacity-100 scale-100'}">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
-                            <button onclick="window.appState.sidebarCollapsed = !window.appState.sidebarCollapsed; window.renderApp();" class="absolute top-10 -right-2 w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-600 shadow-lg transition-all z-[110] outline-none">
-                                <i class="fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-[10px]"></i>
-                            </button>
+    <!-- ABOUT PAGE -->
+    <section id="aboutPage" class="page-section">
+        <div class="about-container">
+            <div class="premium-profile-card">
+                <div class="profile-visual-box">
+                    <div class="avatar-bg-glow"></div>
+                    <div class="avatar-wrapper"><img src="https://i.imgur.com/dVmz7Vb.png" alt="Foto Mohamad Rizki"></div>
+                    
+                    <div class="profile-details">
+                        <span class="role">Visionary Architect</span>
+                        <h3>Mohamad Rizki, S.Pd., Gr.</h3>
+                        <div class="bio-content">
+                            Saya adalah seorang Guru SD yang berdedikasi, lulusan dari <strong>Universitas Sultan Ageng Tirtayasa (UNTIRTA)</strong>. Akar pendidikan saya bermula di <strong>SMK jurusan Rekayasa Perangkat Lunak (RPL)</strong>, memberikan perspektif teknis yang tajam untuk memadukan dunia pedagogi dengan inovasi teknologi.
                         </div>
-                        <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10">
-                            ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
-                            ${window.renderNavItem('scanner', 'fa-qrcode', 'QR Presensi')}
-                            ${window.renderNavItem('input', 'fa-pen-to-square', 'Isi Jurnal')}
-                            ${window.renderNavItem('mapel', 'fa-book-open', 'Mata Pelajaran')}
-                            ${window.renderNavItem('history', 'fa-clock-rotate-left', 'Riwayat')}
-                            ${window.renderNavItem('reports', 'fa-file-invoice', 'Laporan')}
-                            ${window.renderNavItem('students', 'fa-users', 'Database Siswa')}
-                            ${window.renderNavItem('holidays', 'fa-calendar-day', 'Hari Libur')}
-                            ${window.renderNavItem('settings', 'fa-gear', 'Pengaturan')}
-                            ${window.renderNavItem('info', 'fa-circle-info', 'Informasi')}
-                        </nav>
-                    </aside>
-                    <main class="flex-grow overflow-y-auto h-full custom-scroll relative bg-slate-50 flex flex-col">
-                        <div class="max-w-6xl mx-auto w-full p-4 md:p-8 flex-grow">
-                            <header class="mb-8 flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm text-left shrink-0">
-                                <div><h2 class="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-800">${view}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2.5 md:px-4 rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 shadow-sm flex items-center gap-2"><i class="fa-solid fa-repeat"></i> <span class="hidden md:inline">Smt</span> ${window.appState.settings.semester}</button>
-                                    <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-10 h-10 md:w-auto md:px-5 md:py-2.5 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[10px] tracking-widest active:scale-95 shadow-sm"><i class="fa-solid fa-right-from-bracket"></i> <span class="hidden md:inline">Keluar</span></button>
-                                </div>
-                            </header>
-                            <div id="view-container" class="pb-10">${window.renderCurrentView()}</div>
-                        </div>
-                    </main>
+                    </div>
 
-                    ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn"><h3 class="text-xl font-black uppercase text-rose-600 mb-2">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8">${window.appState.modal.message}</p><div class="flex gap-3"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest">Ya, Lanjutkan</button></div></div></div>` : ''}
-                    ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-10 max-w-xs w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 inline-block mb-8 min-w-[256px] min-h-[256px]"></div><div class="flex flex-col gap-2"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"><i class="fa-solid fa-download"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Tutup</button></div></div></div>` : ''}
-                </div>`;
-            lucide.createIcons(); if (view === 'dashboard') window.initChart();
-        };
+                    <div class="social-stack">
+                        <!-- TAURAN SOSMED: Monochrome di awal, warna brand saat hover -->
+                        <a href="https://www.instagram.com/mohdrizkkyy" target="_blank" class="social-link-btn ig" title="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>
+                        <a href="https://www.tiktok.com/@mohdrizkkyy" target="_blank" class="social-link-btn tk" title="TikTok"><svg viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.9-.32-1.98-.23-2.81.33-.85.51-1.44 1.43-1.58 2.41-.14.99.13 2.02.74 2.81.59.7 1.48 1.1 2.39 1.1 1.25.06 2.42-.64 2.96-1.76.22-.44.31-.92.31-1.41-.01-3.21.01-6.42-.03-9.63z"/></svg></a>
+                        <a href="https://www.youtube.com/@mohdrizkkyy" target="_blank" class="social-link-btn yt" title="YouTube"><svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+                    </div>
 
-        window.renderCurrentView = () => {
-            const v = window.appState.currentView; const curSem = window.appState.settings.semester;
-            const diampu = window.appState.settings.kelas_diampu || [];
+                    <div class="card-info-grid">
+                        <div class="card-info-item"><h4><span>01 //</span> Visi Inovasi</h4><p>Otomasi administrasi cerdas agar guru fokus pada karakter siswa.</p></div>
+                        <div class="card-info-item"><h4><span>02 //</span> Standar UX</h4><p>Ekosistem aplikasi intuitif yang menghargai waktu pendidik.</p></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-            if (v === 'dashboard') return `<div class="space-y-8 animate-fadeIn text-left"><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="md:col-span-2 bg-gradient-to-br from-blue-600 to-indigo-900 p-10 rounded-[3rem] text-white shadow-xl flex flex-col justify-center min-h-[220px]"><h1 class="text-3xl font-black mb-2 uppercase tracking-tighter">Halo, ${window.appState.settings.nama_guru || 'Guru'}!</h1><p class="opacity-70 text-[10px] font-bold uppercase tracking-widest mb-8">Administrasi Aktif: Semester ${curSem} (${curSem === '1' ? 'Ganjil' : 'Genap'})</p><div class="flex flex-wrap gap-2"><button onclick="window.setView('scanner')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center gap-2"><i class="fa-solid fa-qrcode"></i> Scan QR</button><button onclick="window.setView('input')" class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-[10px] font-black uppercase backdrop-blur-md transition-all flex items-center gap-2"><i class="fa-solid fa-pen"></i> Jurnal</button></div></div><div class="bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col justify-center items-center text-center"><div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner"><i class="fa-solid fa-users"></i></div><h3 class="text-3xl font-black text-slate-800">${window.appState.students.length}</h3><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Siswa Aktif</p></div></div><div class="bg-white p-8 rounded-[3rem] border shadow-sm"><h4 class="text-[10px] font-black text-slate-400 uppercase mb-6">Tren Kehadiran Smt ${curSem}</h4><div class="h-64 relative w-full"><canvas id="attendanceChart"></canvas></div></div></div>`;
-            
-            if (v === 'input') {
-                const students = window.appState.students.filter(s => String(s.kelas) === String(window.appState.selectedKelas));
-                const filteredMapels = window.appState.mapels.filter(m => String(m.kelas) === String(window.appState.selectedKelas));
-                return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left"><form onsubmit="window.handleSaveJournal(event)" class="bg-white rounded-[3rem] p-8 border shadow-sm space-y-6 h-fit"><div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Tanggal</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"></div><div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Kelas</label><select name="kelas_mengajar" onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div></div><div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block">Jam Ke-</label><input type="number" name="jam_ke" required min="1" max="10" placeholder="1" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"></div><div class="flex items-end pb-3"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="is_kerja_khusus" class="w-4 h-4"><span class="text-[9px] font-black uppercase">Hari Kerja Khusus</span></label></div></div><select name="mata_pelajaran" onchange="window.appState.selectedMapel = this.value; window.renderApp();" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"><option value="">Pilih Mapel...</option>${filteredMapels.map(m => `<option value="${m.nama}" ${window.appState.selectedMapel===m.nama?'selected':''}>${m.nama}</option>`).join('')}</select><select onchange="document.getElementsByName('tujuan_pembelajaran')[0].value = this.value" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"><option value="">Pilih TP Database...</option>${(filteredMapels.find(m => m.nama === window.appState.selectedMapel)?.tp || []).map(t => `<option value="${t}">${t}</option>`).join('')}</select><textarea name="tujuan_pembelajaran" placeholder="TP Manual..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[100px] border-none text-xs"></textarea><textarea name="catatan" placeholder="Catatan..." class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[60px] border-none text-xs"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Simpan Jurnal</button></form><div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col h-[500px] md:h-[600px] overflow-hidden"><div class="flex items-center justify-between mb-4 shrink-0"><h4 class="font-black text-xl uppercase leading-none">Presensi</h4><div class="flex gap-2"><button onclick="window.markAllPresent('${window.appState.selectedKelas}')" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tight shadow-sm"><i class="fa-solid fa-check-double"></i> Hadir Semua</button><button onclick="window.setView('scanner')" class="bg-slate-100 text-slate-800 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"><i class="fa-solid fa-qrcode"></i></button></div></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow">${students.map(s => { const log = window.appState.attendance.find(a => a.studentId === s.id && a.date === window.appState.selectedDate); return `<div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border"><span class="text-[10px] font-black uppercase text-slate-700 truncate w-1/3">${s.nama_siswa}</span><div class="flex gap-1"><button onclick="window.markAttendance('${s.id}', 'Hadir')" class="w-9 h-8 rounded-lg font-black text-[8px] ${log?.status === 'Hadir' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-300 border'}">H</button><button onclick="window.markAttendance('${s.id}', 'Izin')" class="w-9 h-8 rounded-lg font-black text-[8px] ${log?.status === 'Izin' ? 'bg-sky-400 text-white shadow-md' : 'bg-white text-slate-300 border'}">I</button><button onclick="window.markAttendance('${s.id}', 'Sakit')" class="w-9 h-8 rounded-lg font-black text-[8px] ${log?.status === 'Sakit' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">S</button><button onclick="window.markAttendance('${s.id}', 'Alpa')" class="w-9 h-8 rounded-lg font-black text-[8px] ${log?.status === 'Alpa' ? 'bg-rose-500 text-white shadow-md' : 'bg-white text-slate-300 border'}">A</button></div></div>`}).join('') || '<p class="text-center py-20 text-slate-300 font-black text-[9px]">Belum Ada Siswa</p>'}</div></div></div>`;
+    <!-- MORE APPS PAGE -->
+    <section id="morePage" class="page-section">
+      <div class="text-center mb-16"><h2 class="hero-title uppercase">ROADMAP 2025</h2><p class="brand-name mt-2">Future Ecosystem Modules</p></div>
+      <div class="apps-grid">
+        <div class="app-card-placeholder border-solid border-blue-500/20 bg-blue-500/5 opacity-100"><div class="icon-slot text-blue-400">📊</div><h5>Analisis Soal AI</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">📅</div><h5>Agenda Cloud</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">🛡️</div><h5>Log Karakter</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">📂</div><h5>Arsip Digital</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">📝</div><h5>Modul Builder</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">💬</div><h5>Parent Hub</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">⏱️</div><h5>Presensi QR</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">🥇</div><h5>E-Sertifikat</h5></div>
+        <div class="app-card-placeholder"><div class="icon-slot">🚀</div><h5>LMS Pro</h5></div>
+      </div>
+    </section>
+   </main>
+
+   <!-- MODERN FLOATING DOCK -->
+   <nav class="dock-container" id="dockNav">
+      <button onclick="navigateTo('home')" class="dock-item active" id="navHome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg><span>Home</span></button>
+      <button onclick="navigateTo('about')" class="dock-item" id="navAbout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><span>About</span></button>
+      <button onclick="navigateTo('more')" class="dock-item" id="navApps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><span>Apps</span></button>
+   </nav>
+
+   <p class="footer-copy">© 2025 — Precision Crafted by Mohamad Rizki, S.Pd., Gr.</p>
+  </div>
+
+  <script>
+    /**
+     * KONFIGURASI TAUTAN TERPUSAT
+     * Ganti link di bawah ini sesuai dengan alamat aplikasi Anda.
+     * Cukup ubah di sini satu kali, maka semua menu akan terupdate otomatis.
+     */
+    const REEZ_LINKS = {
+        jurnal: "https://sites.google.com/guru.sd.belajar.id/reezapps/jurnal-guru",   // <-- Ganti link Jurnal Guru di sini
+        rapor: "https://reezapps.my.id/rapor",     // <-- Ganti link Input Rapor di sini
+        asesmen: "https://reezapps.my.id/asesmen", // <-- Ganti link Asesmen di sini
+        remedial: "https://sites.google.com/guru.sd.belajar.id/reezapps/tracking-remedial", // <-- Ganti link Remedial di sini
+        cekusia: "https://reezapps.my.id/cekusia"  // <-- Ganti link Cek Usia di sini
+    };
+
+    const arcMenu = document.getElementById('arcMenu');
+    const trigger = document.getElementById('trigger');
+    const menuItems = document.querySelectorAll('.menu-item');
+    const sections = document.querySelectorAll('.page-section');
+    const affirmationBubble = document.getElementById('affirmationBubble');
+    const bubbleContent = document.getElementById('bubbleContent');
+    const mainFigure = document.getElementById('mainFigure');
+    const closeFocusBtn = document.getElementById('closeFocusBtn');
+    
+    let isOpen = false;
+
+    /**
+     * Fungsi untuk menerapkan link dari konfigurasi terpusat
+     */
+    function applyCentralLinks() {
+        document.querySelectorAll('[data-app]').forEach(el => {
+            const appId = el.getAttribute('data-app');
+            if (REEZ_LINKS[appId]) {
+                el.href = REEZ_LINKS[appId];
             }
+        });
+    }
 
-            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left"><div class="bg-white rounded-[3rem] p-8 border shadow-sm h-fit"><h4 class="font-black text-xl uppercase mb-6">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl outline-none">Sinkron Database</button></form></div><div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col h-[600px]"><div class="flex justify-between items-center mb-6 shrink-0"><h4 class="font-black text-xl uppercase leading-none">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm">ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl"><div class="flex items-center gap-4 text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800">${s.nama_siswa}</span></div><div class="flex gap-1"><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg"><i class="fa-solid fa-qrcode"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg"><i class="fa-solid fa-trash-can"></i></button></div></div>`).join('')}</div></div></div>`;
-            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn text-left space-y-8"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-6"><h4 class="font-black text-xl uppercase mb-4 text-left leading-none">Profil Guru</h4><div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs"></div></div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs"></div></div><div class="grid grid-cols-2 gap-4"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs"></div></div>
-                <div class="space-y-2 border-t pt-4"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block">Kelas yang Diampu</label><div class="flex flex-wrap gap-3">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black">KLS ${k}</span></label>`).join('')}</div></div>
-                </div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl">Simpan Profil</button></form><div class="bg-rose-50 p-10 rounded-[3rem] border border-rose-100 space-y-6"><h4 class="font-black text-xl uppercase text-rose-600 text-left leading-none">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all">Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Bersihkan Database</button></div></div></div>`;
-            
-            if (v === 'info') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left"><div class="bg-white rounded-[3rem] p-10 border shadow-sm space-y-10"><div><h4 class="font-black text-2xl uppercase tracking-tighter mb-6 text-blue-600 leading-none">Panduan Jurnal Guru</h4><p class="text-sm text-slate-500 font-medium leading-relaxed">Jurnal Guru PRO adalah solusi digital untuk manajemen administrasi kelas yang efisien dan aman.</p></div>
-                <div><h4 class="font-black text-xl uppercase mb-6 text-slate-800 leading-none">Tutorial Singkat</h4><ol class="space-y-4 text-xs font-black text-slate-500"><li>1. Input data siswa dan mata pelajaran per tingkatan kelas.</li><li>2. Gunakan pemindai QR untuk presensi instan (otomatis untuk jam ke-1).</li><li>3. Isi Jurnal harian; jam berikutnya otomatis mengikuti presensi jam sebelumnya.</li><li>4. Ekspor laporan bulanan atau semesteran ke format PDF Formal atau CSV.</li></ol></div>
-                <div><h4 class="font-black text-xl uppercase mb-6 leading-none">Media Sosial</h4><div class="flex justify-center gap-6 text-center"><a href="https://instagram.com/mohdrizkkyy" target="_blank" class="text-rose-500 text-3xl hover:scale-110 transition-all"><i class="fa-brands fa-instagram"></i></a><a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="text-slate-800 text-3xl hover:scale-110 transition-all"><i class="fa-brands fa-tiktok"></i></a><a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="text-rose-600 text-3xl hover:scale-110 transition-all"><i class="fa-brands fa-youtube"></i></a></div></div>
-                <div class="pt-8 border-t border-slate-100 text-center shrink-0"><p class="text-[10px] font-black uppercase text-slate-400 mb-2 leading-none">Dikembangkan Oleh:</p><h5 class="text-lg font-black text-slate-800 uppercase tracking-tighter leading-none">Mohamad Rizki, S.Pd.,Gr.</h5><p class="text-[9px] font-black text-blue-600 uppercase mt-4 leading-none">@mohdrizkkyy</p></div></div></div>`;
-            
-            if (v === 'scanner') return `<div class="max-w-md mx-auto animate-fadeIn"><div class="bg-white rounded-[3.5rem] p-10 border shadow-sm text-center flex flex-col items-center h-full"><div id="reader" class="rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0"></div><p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none">Arahkan kamera ke QR Siswa</p><button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shrink-0">Reset Kamera</button></div></div>`;
-            if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0"><h4 class="font-black text-xl uppercase mb-6 leading-none">Kelola Mapel</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"><textarea name="tujuan_pembelajaran" placeholder="TP (Enter)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Simpan</button></form></div><div class="space-y-4 pb-10">${window.appState.mapels.sort((a,b)=>a.kelas-b.kelas).map(m => `<div class="bg-white p-6 rounded-3xl border flex justify-between items-start"><div><div class="flex items-center gap-2 mb-2"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[9px] font-black">KLS ${m.kelas}</span><h5 class="font-black uppercase text-slate-800">${m.nama}</h5></div><ul class="mt-2 space-y-1">${m.tp.map(t => `<li class="text-[10px] text-slate-500 font-bold">• ${t}</li>`).join('')}</ul></div><button onclick="window.deleteDocData('mapels', '${m.id}')" class="text-rose-400 p-2"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
-            if (v === 'history') return `<div class="space-y-6 animate-fadeIn text-left h-full flex flex-col overflow-hidden"><div class="bg-white rounded-[3rem] p-8 border shadow-sm flex justify-between items-center shrink-0"><h4 class="font-black text-xl uppercase leading-none">Riwayat (Smt ${curSem})</h4><div class="flex gap-2"><button onclick="window.exportFormal('journals', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase">CSV</button><button onclick="window.exportFormal('journals', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase">PDF</button></div></div><div class="bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col flex-grow"><div class="overflow-x-auto overflow-y-auto custom-scroll flex-grow"><table class="w-full text-left text-[11px]"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 z-10"><tr><th class="py-5 px-4">Tgl</th><th class="py-5 px-4">Jam</th><th class="py-5 px-4 text-center">Kelas</th><th class="py-5 px-4">Mapel</th><th class="py-5 px-4 text-center">Aksi</th></tr></thead><tbody class="divide-y">${window.appState.journals.filter(j=>j.semester===curSem).sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `<tr><td class="py-5 px-4 font-black">${j.tanggal}</td><td class="py-5 px-4 font-black">${j.jam_ke}</td><td class="py-5 px-4 text-center font-black">${j.kelas_mengajar}</td><td class="py-5 px-4 uppercase text-blue-600 font-black text-left">${j.mata_pelajaran}</td><td class="py-5 px-4 text-center"><button onclick="window.deleteDocData('journals', '${j.id}')" class="text-rose-400 p-2"><i class="fa-solid fa-trash-can"></i></button></td></tr>`).join('')}</tbody></table></div></div></div>`;
-            if (v === 'reports') return `<div class="space-y-6 animate-fadeIn text-left"><div class="bg-white rounded-[3rem] p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6"><div class="flex flex-col gap-2"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Pilih Bulan (Smt ${curSem})</label><input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-sm"></div><div class="flex gap-2"><button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-8 py-4 rounded-2xl font-black text-[10px] uppercase">CSV</button><button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-8 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center gap-3"><i class="fa-solid fa-file-pdf"></i> PDF</button></div></div></div>`;
-            if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left h-full flex flex-col"><div class="bg-white rounded-[3rem] p-8 border shadow-sm mb-8 shrink-0"><h4 class="font-black text-xl uppercase mb-6 leading-none">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Simpan</button></form></div><div class="space-y-2 overflow-y-auto custom-scroll flex-grow pb-10">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all"><i class="fa-solid fa-trash-can"></i></button></div>`).join('')}</div></div>`;
-            return ``;
-        };
+    function updateClock() {
+      const now = new Date();
+      const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      document.getElementById('displayFullDate').innerHTML = `<span>${days[now.getDay()]},</span> <span>${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}</span>`;
+      document.getElementById('displayTime').innerText = now.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
+    }
+    setInterval(updateClock, 1000);
 
-        const startApp = async () => { try { await signInAnonymously(auth); onAuthStateChanged(auth, (u) => { window.appState.user = u; window.appState.loading = false; window.renderApp(); }); } catch (e) { window.appState.loading = false; window.renderApp(); } };
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startApp); else startApp();
-    </script>
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; overflow: hidden; -webkit-font-smoothing: antialiased; touch-action: manipulation; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-slideDown { animation: slideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-        button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; outline: none !important; }
-        #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; }
-        aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        #reader { min-height: 250px; background: #0f172a; position: relative; }
-        #reader video { object-fit: cover !important; }
-        input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; }
-        
-        /* Fix for single-screen responsive view */
-        main { height: 100%; display: flex; flex-direction: column; }
-        #view-container { flex-grow: 1; }
-    </style>
-</head>
-<body class="bg-slate-50 overflow-hidden h-screen h-[100dvh]">
-    <div id="root" class="h-full"></div>
-    <div id="notif-anchor" class="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex flex-col items-center gap-2 w-full max-w-xs px-6"></div>
-</body>
+    function createSparkle() {
+      const container = document.getElementById('sparkle-container');
+      if (!container || isOpen) return;
+      const sparkle = document.createElement('div');
+      sparkle.className = 'sparkle';
+      const size = Math.random() * 3 + 1 + 'px';
+      sparkle.style.width = size; sparkle.style.height = size;
+      sparkle.style.left = (Math.random() * window.innerWidth) + 'px';
+      sparkle.style.top = (Math.random() * window.innerHeight) + 'px';
+      container.appendChild(sparkle);
+      setTimeout(() => sparkle.remove(), 5000);
+    }
+    setInterval(createSparkle, 400);
+
+    const staticAffirmations = ["Guru Hebat! ❤️", "Semangat Mengajar! 🎓", "Pahlawan Bangsa 🇮🇩", "Terus Bercahaya 🌟"];
+    let affIdx = 0;
+    function rotateAffirmations() {
+      if (isOpen) return;
+      affirmationBubble.classList.remove('active');
+      setTimeout(() => {
+        bubbleContent.innerText = staticAffirmations[affIdx];
+        affirmationBubble.classList.add('active');
+        affIdx = (affIdx + 1) % staticAffirmations.length;
+      }, 600);
+    }
+    setInterval(rotateAffirmations, 10000);
+
+    window.onload = () => {
+      applyCentralLinks();
+      updateClock();
+      setTimeout(() => { if (!isOpen && document.getElementById('homePage').classList.contains('active')) document.body.classList.add('focused'); }, 5000);
+      rotateAffirmations();
+    };
+
+    function navigateTo(targetId) {
+      if (isOpen) toggleMenu();
+      document.body.classList.remove('focused');
+      sections.forEach(s => s.classList.remove('active'));
+      
+      const isActuallyHome = targetId === 'home';
+      document.body.classList.toggle('is-home', isActuallyHome);
+      
+      document.querySelectorAll('.dock-item').forEach(item => item.classList.remove('active'));
+      
+      const tid = targetId === 'about' ? 'aboutPage' : (targetId === 'more' ? 'morePage' : (targetId === 'list' ? 'listMenuPage' : 'homePage'));
+      
+      if(targetId !== 'list') {
+        const navId = 'nav' + targetId.charAt(0).toUpperCase() + targetId.slice(1);
+        const navEl = document.getElementById(navId);
+        if(navEl) navEl.classList.add('active');
+      }
+
+      const target = document.getElementById(tid);
+      if (target) { target.classList.add('active'); target.scrollTop = 0; }
+    }
+
+    closeFocusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isOpen) toggleMenu();
+        document.body.classList.remove('focused');
+    });
+
+    function refreshMenuPosition() {
+      const radius = 285; 
+      menuItems.forEach((item, index) => {
+        if (isOpen) {
+          const angleStart = 185;
+          const angleDegree = angleStart - (index * (190 / (menuItems.length - 1)));
+          const angleRadian = angleDegree * (Math.PI / 180);
+          const x = Math.cos(angleRadian) * radius; const y = -Math.sin(angleRadian) * radius;
+          item.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(1)`;
+          item.style.opacity = '1'; item.style.transitionDelay = `${index * 0.04}s`;
+        } else {
+          item.style.transform = `translate(-50%, -50%) scale(0.1)`; item.style.opacity = '0';
+        }
+      });
+    }
+
+    function toggleMenu(event) {
+      if (event) event.stopPropagation();
+      isOpen = !isOpen;
+      if (isOpen) {
+        arcMenu.classList.add('active-menu');
+        affirmationBubble.classList.remove('active'); 
+        document.body.classList.add('focused'); 
+        mainFigure.style.transform = 'scale(0.88)';
+      } else {
+        arcMenu.classList.remove('active-menu');
+        mainFigure.style.transform = 'scale(1)';
+        setTimeout(() => { if(!isOpen) rotateAffirmations(); }, 800);
+      }
+      refreshMenuPosition();
+    }
+
+    trigger.addEventListener('click', toggleMenu);
+    document.addEventListener('click', (e) => { if (isOpen && !trigger.contains(e.target) && !arcMenu.contains(e.target)) toggleMenu(); });
+    window.addEventListener('resize', refreshMenuPosition);
+    refreshMenuPosition();
+  </script>
+ </body>
 </html>
