@@ -808,6 +808,10 @@
                 const todayDayName = todayDate.toLocaleDateString('id-ID', { weekday: 'long' });
                 const todayDateStr = todayDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
+                // Active Student Calculation
+                const activeClass = window.appState.selectedKelas || (window.appState.settings.kelas_diampu && window.appState.settings.kelas_diampu.length > 0 ? window.appState.settings.kelas_diampu[0] : '1');
+                const studentCount = window.appState.students.filter(s => String(s.kelas) === String(activeClass)).length;
+
                 // Calendar Logic
                 const currentMonth = new Date();
                 const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
@@ -872,6 +876,10 @@
                                 <div class="text-center">
                                     <p class="text-xs font-black text-emerald-600">${hadirToday}</p>
                                     <p class="text-[7px] font-black text-slate-400 uppercase">Hadir</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-xs font-black text-indigo-600">${studentCount}</p>
+                                    <p class="text-[7px] font-black text-slate-400 uppercase">Siswa</p>
                                 </div>
                             </div>
                         </div>
@@ -1116,7 +1124,7 @@
                             <div id="reader" class="w-full h-full bg-slate-900"></div>
                             
                             ${window.appState.scanSuccessPopup.show ? `
-                            <div class="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn">
+                            <div class="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn rounded-[1.5rem] md:rounded-[2rem]">
                                 <div class="bg-white p-4 rounded-full mb-4 shadow-xl animate-bounce">
                                     <i class="fa-solid fa-check text-4xl text-emerald-500"></i>
                                 </div>
