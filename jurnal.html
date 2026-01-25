@@ -94,7 +94,7 @@
             lastFocusedId: null,
             lastCaretPos: 0,
             mobileMenuOpen: false,
-            sidebarCollapsed: false, // New State for Sidebar
+            sidebarCollapsed: false, // State for Sidebar Collapse
             scannerActive: false,
             html5QrCode: null,
             cameraFacingMode: "environment", // Default camera (back)
@@ -1063,7 +1063,7 @@
                             <div id="reader" class="w-full h-full bg-slate-900"></div>
                             
                             ${window.appState.scanSuccessPopup.show ? `
-                            <div class="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn">
+                            <div class="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn rounded-[1.5rem] md:rounded-[2rem]">
                                 <div class="bg-white p-4 rounded-full mb-4 shadow-xl animate-bounce">
                                     <i class="fa-solid fa-check text-4xl text-emerald-500"></i>
                                 </div>
