@@ -94,6 +94,7 @@
             lastFocusedId: null,
             lastCaretPos: 0,
             mobileMenuOpen: false,
+            sidebarCollapsed: false, // New State for Sidebar
             scannerActive: false,
             html5QrCode: null,
             cameraFacingMode: "environment", // Default camera (back)
@@ -684,9 +685,10 @@
 
         window.renderNavItem = (view, icon, label) => {
             const active = window.appState.currentView === view; 
-            return `<button onclick="window.setView('${view}')" class="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'} w-full text-left outline-none border-none group">
-                <div class="w-6 text-center text-lg shrink-0"><i class="fa-solid ${icon}"></i></div>
-                <span class="text-[11px] font-black uppercase tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 w-full opacity-100 text-left">${label}</span>
+            const collapsed = window.appState.sidebarCollapsed;
+            return `<button onclick="window.setView('${view}')" class="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'} w-full text-left outline-none border-none group relative overflow-hidden" title="${label}">
+                <div class="w-6 text-center text-lg shrink-0 flex justify-center"><i class="fa-solid ${icon}"></i></div>
+                <span class="text-[11px] font-black uppercase tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100 delay-100'} text-left">${label}</span>
             </button>`;
         };
 
@@ -707,14 +709,21 @@
 
             const view = window.appState.currentView; 
             const currentTitle = viewTitles[view] || view;
+            const collapsed = window.appState.sidebarCollapsed;
 
             root.innerHTML = `
                 <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden text-left">
                     <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter text-left">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none text-center"><i class="fa-solid fa-bars text-center"></i></button></header>
-                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 w-full md:w-64 md:relative absolute inset-y-0 left-0 z-[150] h-full shadow-2xl md:shadow-none">
-                        <div class="flex items-center gap-4 px-6 py-8 relative shrink-0 text-left">
+                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 w-full ${collapsed ? 'md:w-24' : 'md:w-64'} md:relative absolute inset-y-0 left-0 z-[150] h-full shadow-2xl md:shadow-none">
+                        
+                        <!-- Toggle Button -->
+                        <button onclick="window.appState.sidebarCollapsed = !window.appState.sidebarCollapsed; window.renderApp();" class="hidden md:flex absolute -right-3 top-10 bg-white border border-slate-200 text-slate-400 w-6 h-6 rounded-full items-center justify-center text-[10px] shadow-sm hover:text-blue-600 hover:border-blue-600 transition-all z-20">
+                            <i class="fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'}"></i>
+                        </button>
+
+                        <div class="flex items-center gap-4 px-6 py-8 relative shrink-0 text-left overflow-hidden">
                             <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0 text-center"><i class="fa-solid fa-graduation-cap text-center"></i></div>
-                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 opacity-100 scale-100 text-left">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
+                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 w-0 translate-x-10 absolute' : 'opacity-100 w-auto relative'} text-left">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
                         </div>
                         <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10 text-left">
                             ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
@@ -731,12 +740,12 @@
                         ${window.appState.mobileMenuOpen ? `<button onclick="window.appState.mobileMenuOpen = false; window.renderApp();" class="md:hidden absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-center"><i class="fa-solid fa-xmark text-center"></i></button>` : ''}
                     </aside>
                     <main class="flex-grow h-full relative bg-slate-50 flex flex-col overflow-hidden text-left">
-                        <div class="max-w-5xl mx-auto w-full p-4 md:p-6 lg:p-8 flex flex-col h-full overflow-hidden text-left">
+                        <div class="max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 flex flex-col h-full overflow-hidden text-left">
                             <header class="mb-4 md:mb-6 flex justify-between items-center bg-white p-4 md:p-5 rounded-[2rem] border shadow-sm shrink-0 text-left">
                                 <div><h2 class="text-base md:text-xl font-black uppercase tracking-tight text-slate-800 leading-none text-left">${currentTitle}</h2><p class="text-slate-400 text-[8px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
                                 <div class="flex items-center gap-2 text-center">
-                                    <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest shadow-sm flex items-center justify-center gap-2 text-center text-center"><i class="fa-solid fa-repeat text-center"></i> <span class="hidden md:inline text-center">Smt</span> ${window.appState.settings.semester}</button>
-                                    <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-9 h-9 md:w-auto md:px-4 md:py-2 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[9px] tracking-widest shadow-sm text-center text-center text-center"><i class="fa-solid fa-right-from-bracket text-center"></i> <span class="hidden md:inline text-center">Keluar</span></button>
+                                    <button onclick="window.toggleSemester()" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest shadow-sm flex items-center justify-center gap-2 text-center text-center text-center"><i class="fa-solid fa-repeat text-center"></i> <span class="hidden md:inline text-center">Smt</span> ${window.appState.settings.semester}</button>
+                                    <button onclick="window.handleLogout()" class="bg-rose-50 text-rose-500 w-9 h-9 md:w-auto md:px-4 md:py-2 rounded-xl flex items-center justify-center gap-2 font-black uppercase text-[9px] tracking-widest shadow-sm text-center text-center text-center text-center"><i class="fa-solid fa-right-from-bracket text-center"></i> <span class="hidden md:inline text-center">Keluar</span></button>
                                 </div>
                             </header>
                             <div id="view-container" class="flex-grow overflow-y-auto custom-scroll pb-10 text-left">
@@ -903,8 +912,8 @@
                         <div class="flex items-center justify-between mb-4 shrink-0 text-left">
                             <h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Presensi</h4>
                             <div class="flex gap-2 text-center text-center">
-                                <button onclick="window.markAllPresent('${window.appState.selectedKelas}')" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tight shadow-sm text-center text-center"><i class="fa-solid fa-check-double mr-1"></i> Hadir Semua</button>
-                                <button onclick="window.setView('scanner')" class="bg-slate-100 text-slate-800 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm text-center text-center"><i class="fa-solid fa-qrcode text-center text-center"></i></button>
+                                <button onclick="window.markAllPresent('${window.appState.selectedKelas}')" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tight shadow-sm text-center text-center text-center"><i class="fa-solid fa-check-double mr-1"></i> Hadir Semua</button>
+                                <button onclick="window.setView('scanner')" class="bg-slate-100 text-slate-800 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm text-center text-center text-center text-center"><i class="fa-solid fa-qrcode text-center text-center"></i></button>
                             </div>
                         </div>
                         <div class="mb-4 relative text-left">
@@ -920,7 +929,7 @@
 
             if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm h-fit text-left"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-rotate mr-2"></i> Sinkron Database</button></form></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left"><div class="flex justify-between items-center mb-6 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center"><i class="fa-solid fa-file-zipper mr-2"></i> ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1 text-center"><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode text-center"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div></div>`).join('')}</div></div></div>`;
             
-            if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel Baru</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Mapel & TP</button></form></div>
+            if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel Baru</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Mapel & TP</button></form></div>
                 <div class="space-y-4 pb-10 text-left text-left">
                     <h4 class="font-black text-lg uppercase mb-4 text-slate-600 text-left">Daftar Mata Pelajaran & TP Terdaftar</h4>
                     ${window.appState.mapels.sort((a,b)=>a.kelas-b.kelas).map(m => `
@@ -1117,6 +1126,7 @@
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startApp); else startApp();
     </script>
     <style>
+        :root { font-size: 13px; }
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; -webkit-font-smoothing: antialiased; touch-action: manipulation; direction: ltr; margin: 0; padding: 0; }
         .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
@@ -1137,7 +1147,7 @@
         /* Desktop Scale Adjustment */
         @media (min-width: 1024px) {
             main { transform-origin: top center; }
-            .max-w-5xl { max-width: 1100px; }
+            .max-w-7xl { max-width: 1400px; }
         }
 
         /* Layout responsiveness fixes */
