@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Central - Jurnal Guru Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeFirestore, collection, doc, setDoc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, limit, orderBy, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDU04V8KpMbBc28-bpP9PM_LQP06Kx9Cwk",
+            authDomain: "remedial-tracker.firebaseapp.com",
+            projectId: "remedial-tracker",
+            storageBucket: "remedial-tracker.firebasestorage.app",
+            messagingSenderId: "720679266176",
+            appId: "1:720679266176:web:95b19d6eb06cf6cd9c4365"
+        };
+        
+        const appId = 'jurnal-guru-pro'; 
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+        window.adminState = {
+            isAuthenticated: false,
+            currentView: 'accounts', // accounts, guide
+            loginError: '',
+            accounts: [],
+            visiblePins: {}, 
+            logs: [],
+            globalStats: { totalStudents: 0, totalJournals: 0, totalAttendance: 0 },
+            loading: true,
+            isCalculatingStats: false,
+            isDownloading: false,
+            searchQuery: '',
+            lastFocusedId: null,
+            lastCaretPos: 0,
+            adminConfig: { pin: "ADMIN123" },
+            modal: { show: false, type: 'alert', title: '', message: '', onConfirm: null, inputValue: '', isPassword: false }
+        };
+
+        // --- UI UTILS ---
+        window.copyToClipboard = (text) => {
+            const input = document.createElement('input');
+            input.value = text;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            window.ui.alert("Berhasil Salin", "PIN telah disalin ke papan klip.");
+        };
+
+        window.handleSearchInput = (el) => {
+            window.adminState.searchQuery = el.value;
+            window.adminState.lastFocusedId = el.id;
+            window.adminState.lastCaretPos = el.selectionStart;
+            window.renderAdmin();
+        };
+
+        window.togglePinVisibility = (id) => {
+            window.adminState.visiblePins[id] = !window.adminState.visiblePins[id];
+            window.renderAdmin();
+        };
+
+        window.openTeacherWeb = () => {
+            window.open('https://mohdrizki.github.io/jurnal', '_blank');
+        };
+
+        window.setView = (view) => {
+            window.adminState.currentView = view;
+            window.renderAdmin();
+        };
+
+        window.logoutAdmin = () => {
+            window.adminState.isAuthenticated = false;
+            window.adminState.loginError = '';
+            window.adminState.visiblePins = {};
+            window.adminState.searchQuery = '';
+            window.renderAdmin();
+        };
+
+        // --- CUSTOM UI MODALS ---
+        window.ui = {
+            alert: (title, message) => {
+                window.adminState.modal = { show: true, type: 'alert', title, message };
+                window.renderAdmin();
+            },
+            confirm: (title, message, onConfirm) => {
+                window.adminState.modal = { show: true, type: 'confirm', title, message, onConfirm };
+                window.renderAdmin();
+            },
+            prompt: (title, message, defaultValue, onConfirm, isPassword = false) => {
+                window.adminState.modal = { show: true, type: 'prompt', title, message, inputValue: defaultValue, onConfirm, isPassword };
+                window.renderAdmin();
+            },
+            closeModal: () => {
+                window.adminState.modal.show = false;
+                window.renderAdmin();
+            }
+        };
+
+        // --- LOGGING SYSTEM ---
+        window.logActivity = async (action, details) => {
+            try {
+                const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
+                await addDoc(logsRef, {
+                    action,
+                    details,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (e) { console.error("Log error:", e); }
+        };
+
+        // --- DATA INITIALIZATION ---
+        window.initAdminData = async () => {
+            const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'admin', 'config');
+            const configSnap = await getDoc(configRef);
+            if (configSnap.exists()) window.adminState.adminConfig = configSnap.data();
+
+            const securityRef = collection(db, 'artifacts', appId, 'public', 'data', 'security');
+            onSnapshot(securityRef, (snap) => {
+                window.adminState.accounts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                window.adminState.loading = false;
+                window.renderAdmin();
+            });
+
+            const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
+            onSnapshot(logsRef, (snap) => {
+                window.adminState.logs = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+                    .slice(0, 15);
+                window.renderAdmin();
+            });
+        };
+
+        // --- GLOBAL STATS ---
+        window.calculateGlobalStats = async () => {
+            window.adminState.isCalculatingStats = true;
+            window.renderAdmin();
+            let students = 0, journals = 0, attendance = 0;
+            try {
+                for (const acc of window.adminState.accounts) {
+                    const sSnap = await getDocs(collection(db, 'artifacts', appId, 'users', acc.id, 'students'));
+                    const jSnap = await getDocs(collection(db, 'artifacts', appId, 'users', acc.id, 'journals'));
+                    const aSnap = await getDocs(collection(db, 'artifacts', appId, 'users', acc.id, 'attendance'));
+                    students += sSnap.size; journals += jSnap.size; attendance += aSnap.size;
+                }
+                window.adminState.globalStats = { totalStudents: students, totalJournals: journals, totalAttendance: attendance };
+            } catch (e) { console.error(e); } finally {
+                window.adminState.isCalculatingStats = false;
+                window.renderAdmin();
+            }
+        };
+
+        // --- HANDLERS ---
+        window.handleAdminLogin = (e) => {
+            e.preventDefault();
+            if (e.target.adminPass.value === window.adminState.adminConfig.pin) {
+                window.adminState.isAuthenticated = true;
+                window.adminState.loginError = '';
+                window.calculateGlobalStats();
+            } else {
+                window.adminState.loginError = 'PIN Administrator Salah!';
+            }
+            window.renderAdmin();
+        };
+
+        window.changeAdminPin = () => {
+            window.ui.prompt("Verifikasi Keamanan", "Masukkan PIN Administrator saat ini:", "", (oldPin) => {
+                if (oldPin === window.adminState.adminConfig.pin) {
+                    setTimeout(() => {
+                        window.ui.prompt("Ganti PIN Admin", "Masukkan PIN baru Anda:", "", async (newPin) => {
+                            if (newPin && newPin.length >= 4) {
+                                const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'admin', 'config');
+                                await setDoc(configRef, { pin: newPin }, { merge: true });
+                                window.adminState.adminConfig.pin = newPin;
+                                await window.logActivity("CHANGE_PIN", "PIN Administrator diperbarui");
+                                window.ui.alert("Berhasil", "PIN Administrator telah diganti.");
+                            } else {
+                                window.ui.alert("Gagal", "PIN minimal harus 4 karakter.");
+                            }
+                        });
+                    }, 300);
+                } else {
+                    window.ui.alert("Akses Ditolak", "PIN lama salah. Perubahan dibatalkan.");
+                }
+            }, true);
+        };
+
+        window.createNewAccount = async (e) => {
+            e.preventDefault();
+            const name = e.target.teacherName.value;
+            const pin = e.target.teacherPin.value;
+            const newAcc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'security'), { name, pin });
+            await setDoc(doc(db, 'artifacts', appId, 'users', newAcc.id, 'settings', 'profile'), { nama_guru: name, semester: '1', tahun_ajaran: '2024/2025', kelas_diampu: [] }, { merge: true });
+            await window.logActivity("CREATE_ACCOUNT", `Menambah guru: ${name}`);
+            e.target.reset();
+        };
+
+        window.updateAccountName = (id, oldName) => {
+            window.ui.prompt("Edit Nama", "Nama baru:", oldName, async (newName) => {
+                if (newName && newName !== oldName) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'security', id), { name: newName });
+                    await setDoc(doc(db, 'artifacts', appId, 'users', id, 'settings', 'profile'), { nama_guru: newName }, { merge: true });
+                    await window.logActivity("UPDATE_NAME", `Mengubah nama ${oldName} menjadi ${newName}`);
+                    window.ui.alert("Sukses", "Nama telah disinkronkan.");
+                }
+            });
+        };
+
+        window.updateAccountPin = (id, name) => {
+            window.ui.prompt("Ubah PIN Guru", `PIN baru untuk ${name}:`, "", async (newPin) => {
+                if (newPin) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'security', id), { pin: newPin });
+                    await window.logActivity("UPDATE_PIN", `Mengubah PIN guru: ${name}`);
+                }
+            });
+        };
+
+        window.deleteAccount = (id, name) => {
+            window.ui.confirm("Hapus Akun", `Hapus akses untuk ${name}?`, async () => {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'security', id));
+                await window.logActivity("DELETE_ACCOUNT", `Menghapus akun guru: ${name}`);
+            });
+        };
+
+        window.wipeTeacherData = (teacherId, name) => {
+            window.ui.confirm("Wipe Data", `Hapus seluruh isi database milik ${name}?`, async () => {
+                const collections = ['students', 'journals', 'attendance', 'mapels', 'holidays'];
+                for (const c of collections) {
+                    const snap = await getDocs(collection(db, 'artifacts', appId, 'users', teacherId, c));
+                    const batch = writeBatch(db);
+                    snap.forEach(d => batch.delete(d.ref));
+                    await batch.commit();
+                }
+                await window.logActivity("WIPE_DATA", `Membersihkan database milik ${name}`);
+            });
+        };
+
+        window.downloadFullBackup = async (teacherId, teacherName) => {
+            window.adminState.isDownloading = true;
+            window.renderAdmin();
+            const zip = new JSZip();
+            const folder = zip.folder(`DataMaster_${teacherName.replace(/\s+/g, '_')}`);
+            const qrFolder = folder.folder("QR_Siswa_Images");
+            try {
+                const cols = [{ n: 'students', f: ['nama_siswa', 'kelas'] },{ n: 'journals', f: ['tanggal', 'mata_pelajaran', 'jam_ke', 'tujuan_pembelajaran'] },{ n: 'attendance', f: ['studentName', 'date', 'status'] }];
+                for (const c of cols) {
+                    const snap = await getDocs(collection(db, 'artifacts', appId, 'users', teacherId, c.n));
+                    let csv = c.f.join(',') + '\n';
+                    snap.forEach(d => csv += c.f.map(field => `"${d.data()[field] || ''}"`).join(',') + '\n');
+                    folder.file(`${c.n}.csv`, csv);
+                }
+                const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'users', teacherId, 'students'));
+                const tempDiv = document.createElement('div');
+                tempDiv.style.display = 'none';
+                document.body.appendChild(tempDiv);
+                for (const sDoc of studentsSnap.docs) {
+                    const student = sDoc.data();
+                    tempDiv.innerHTML = '';
+                    new QRCode(tempDiv, { text: student.nama_siswa, width: 512, height: 512, correctLevel: QRCode.CorrectLevel.H });
+                    await new Promise(r => setTimeout(r, 150));
+                    const canvas = tempDiv.querySelector('canvas');
+                    if (canvas) {
+                        const base64Data = canvas.toDataURL("image/png").split(',')[1];
+                        qrFolder.file(`KLS${student.kelas}_${student.nama_siswa.replace(/\s+/g, '_')}.png`, base64Data, {base64: true});
+                    }
+                }
+                document.body.removeChild(tempDiv);
+                const content = await zip.generateAsync({ type: "blob" });
+                saveAs(content, `BACKUP_MASTER_${teacherName.toUpperCase()}.zip`);
+            } catch (e) { console.error(e); } finally {
+                window.adminState.isDownloading = false;
+                window.renderAdmin();
+            }
+        };
+
+        window.renderAdmin = () => {
+            const root = document.getElementById('admin-root');
+            if (!window.adminState.isAuthenticated) {
+                root.innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-slate-950 p-6 animate-fadeIn">
+                    <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 to-orange-500"></div>
+                        <div class="w-20 h-20 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-6"><i class="fa-solid fa-shield-halved"></i></div>
+                        <h2 class="text-2xl font-black uppercase mb-1 tracking-tighter text-slate-900">Admin <span class="text-rose-600 font-extrabold">CENTRAL</span></h2>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-8 text-center italic">Authority Hub for Jurnal Guru Pro</p>
+                        <form onsubmit="window.handleAdminLogin(event)" class="space-y-4">
+                            <input type="password" name="adminPass" placeholder="••••••" autofocus class="w-full bg-slate-50 rounded-xl p-4 font-black text-center outline-none border-2 ${window.adminState.loginError ? 'border-rose-500 bg-rose-50' : 'border-transparent'} focus:border-rose-500 text-xl tracking-[0.5em] transition-all">
+                            ${window.adminState.loginError ? `<p class="text-[10px] font-black uppercase text-rose-600 tracking-widest">${window.adminState.loginError}</p>` : ''}
+                            <button type="submit" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-black transition-all">Grant Access</button>
+                        </form>
+                    </div>
+                </div>`;
+                return;
+            }
+
+            const filteredAcc = window.adminState.accounts.filter(a => (a.name || '').toLowerCase().includes(window.adminState.searchQuery.toLowerCase()));
+
+            root.innerHTML = `
+                <div class="min-h-screen bg-slate-50 flex flex-col md:flex-row text-left animate-fadeIn">
+                    <!-- Sidebar -->
+                    <aside class="w-64 bg-slate-900 text-white p-6 flex flex-col shrink-0 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-600 to-blue-600"></div>
+                        <div class="flex items-center gap-3 mb-10 mt-4">
+                            <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg"><i class="fa-solid fa-user-shield"></i></div>
+                            <h1 class="text-lg font-black uppercase leading-tight">ADMIN<br><span class="text-rose-500 text-sm">CENTRAL</span></h1>
+                        </div>
+                        
+                        <nav class="space-y-1">
+                            <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-2">Navigation</p>
+                            <button onclick="window.setView('accounts')" class="w-full flex items-center gap-3 p-4 rounded-xl ${window.adminState.currentView==='accounts' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'} transition-all text-left">
+                                <i class="fa-solid fa-users-gear text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Akun Guru</span>
+                            </button>
+                            <button onclick="window.setView('guide')" class="w-full flex items-center gap-3 p-4 rounded-xl ${window.adminState.currentView==='guide' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'} transition-all text-left">
+                                <i class="fa-solid fa-book-open text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Panduan</span>
+                            </button>
+                            <div class="pt-4 mt-4 border-t border-white/5">
+                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-2">Otoritas Master</p>
+                                <button onclick="window.openTeacherWeb()" class="w-full flex items-center gap-3 p-4 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600 hover:text-white transition-all text-left mb-2">
+                                    <i class="fa-solid fa-globe text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Sistem Client</span>
+                                </button>
+                                <button onclick="window.changeAdminPin()" class="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-white/5 text-slate-400 hover:text-white transition-all text-left">
+                                    <i class="fa-solid fa-key text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Ubah PIN Admin</span>
+                                </button>
+                                <button onclick="window.logoutAdmin()" class="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-rose-500/20 text-rose-400 transition-all text-left">
+                                    <i class="fa-solid fa-power-off text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Log Out Admin</span>
+                                </button>
+                            </div>
+                        </nav>
+
+                        <div class="mt-auto pt-6 border-t border-white/5">
+                             <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 text-left">Cloud Activity</p>
+                                <div class="space-y-3 overflow-y-auto max-h-40 custom-scroll pr-2">
+                                    ${window.adminState.logs.slice(0,5).map(l => `<div class="text-[7px] leading-tight border-l border-slate-700 pl-2"><p class="text-rose-400 font-bold uppercase mb-0.5">${l.action}</p><p class="text-slate-500 font-mono italic">${new Date(l.timestamp).toLocaleTimeString()}</p></div>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <main class="flex-grow flex flex-col h-screen overflow-hidden text-left relative">
+                        <!-- COOL HEADER COMPONENT -->
+                        <header class="bg-white/80 backdrop-blur-md px-8 py-6 border-b flex justify-between items-center shrink-0 z-10">
+                            <div>
+                                <h2 class="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none mb-1">
+                                    ${window.adminState.currentView === 'accounts' ? 'Management Akun' : 'Panduan Sistem'}
+                                </h2>
+                                <p class="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Otoritas Master • Jurnal Guru Pro</p>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="hidden md:flex bg-slate-50 px-4 py-2 rounded-2xl border flex items-center gap-3">
+                                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-600">${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
+                                </div>
+                                <button onclick="window.calculateGlobalStats()" class="w-11 h-11 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-black transition-all shadow-lg active:scale-95">
+                                    <i class="fa-solid fa-rotate-right ${window.adminState.isCalculatingStats ? 'animate-spin' : ''}"></i>
+                                </button>
+                            </div>
+                        </header>
+
+                        <div class="flex-grow overflow-y-auto custom-scroll p-8">
+                            <div class="max-w-6xl mx-auto space-y-8">
+                                
+                                ${window.adminState.currentView === 'accounts' ? `
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                                        <div class="group bg-white p-6 rounded-[2.5rem] border shadow-sm hover:border-blue-600 transition-all">
+                                            <div class="flex justify-between items-center mb-4"><div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shadow-inner"><i class="fa-solid fa-users"></i></div><i class="fa-solid fa-circle-nodes text-slate-100 group-hover:text-blue-200 transition-all"></i></div>
+                                            <p class="text-[9px] font-black uppercase text-slate-400 mb-1">Populasi Siswa</p>
+                                            <h4 class="text-3xl font-black text-slate-800 tracking-tighter">${window.adminState.globalStats.totalStudents}</h4>
+                                        </div>
+                                        <div class="group bg-white p-6 rounded-[2.5rem] border shadow-sm hover:border-emerald-600 transition-all">
+                                            <div class="flex justify-between items-center mb-4"><div class="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shadow-inner"><i class="fa-solid fa-book"></i></div><i class="fa-solid fa-circle-nodes text-slate-100 group-hover:text-emerald-200 transition-all"></i></div>
+                                            <p class="text-[9px] font-black uppercase text-slate-400 mb-1">Volume Jurnal</p>
+                                            <h4 class="text-3xl font-black text-slate-800 tracking-tighter">${window.adminState.globalStats.totalJournals}</h4>
+                                        </div>
+                                        <div class="group bg-white p-6 rounded-[2.5rem] border shadow-sm hover:border-amber-600 transition-all">
+                                            <div class="flex justify-between items-center mb-4"><div class="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shadow-inner"><i class="fa-solid fa-calendar"></i></div><i class="fa-solid fa-circle-nodes text-slate-100 group-hover:text-amber-200 transition-all"></i></div>
+                                            <p class="text-[9px] font-black uppercase text-slate-400 mb-1">Log Absensi</p>
+                                            <h4 class="text-3xl font-black text-slate-800 tracking-tighter">${window.adminState.globalStats.totalAttendance}</h4>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        <div class="space-y-6">
+                                            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                                <h3 class="font-black uppercase mb-6 text-slate-800 flex items-center gap-2 text-sm"><i class="fa-solid fa-plus-circle text-blue-600"></i> Register Akun</h3>
+                                                <form onsubmit="window.createNewAccount(event)" class="space-y-4">
+                                                    <div class="space-y-1"><label class="text-[8px] font-black text-slate-400 uppercase ml-2 text-left block">Nama Lengkap Guru</label><input type="text" name="teacherName" placeholder="Contoh: Bpk/Ibu..." required class="w-full bg-slate-50 rounded-xl p-4 text-xs font-bold outline-none border border-transparent focus:border-blue-400"></div>
+                                                    <div class="space-y-1"><label class="text-[8px] font-black text-slate-400 uppercase ml-2 text-left block">PIN Login Baru</label><input type="text" name="teacherPin" placeholder="6 Digit" required class="w-full bg-slate-50 rounded-xl p-4 text-xs font-bold outline-none border border-transparent focus:border-blue-400"></div>
+                                                    <button type="submit" class="w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-blue-600 transition-all">Submit Ke Database</button>
+                                                </form>
+                                            </div>
+                                        </div>
+
+                                        <div class="lg:col-span-2 space-y-6">
+                                            <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 group focus-within:border-blue-400 transition-all">
+                                                <i class="fa-solid fa-magnifying-glass text-slate-300 ml-2 group-focus-within:text-blue-500"></i>
+                                                <input id="search-input" type="text" placeholder="Pencarian Nama Guru..." oninput="window.handleSearchInput(this)" value="${window.adminState.searchQuery}" class="flex-grow bg-transparent outline-none font-bold text-xs">
+                                            </div>
+                                            
+                                            <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                                                <table class="w-full text-left">
+                                                    <thead class="bg-slate-50 border-b"><tr class="text-[9px] font-black uppercase text-slate-400"><th class="p-6">Guru</th><th class="text-center">Akses PIN</th><th class="text-right p-6">Pusat Kendali</th></tr></thead>
+                                                    <tbody class="divide-y">${filteredAcc.map(acc => {
+                                                        const isPinVisible = window.adminState.visiblePins[acc.id];
+                                                        return `<tr class="hover:bg-slate-50/80 transition-all">
+                                                        <td class="p-6"><div class="flex items-center gap-4"><div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><i class="fa-solid fa-user text-xs"></i></div><div class="flex flex-col"><div class="flex items-center gap-2 text-left"><p class="font-black text-slate-800 uppercase text-sm">${acc.name || 'GURU'}</p><button onclick="window.updateAccountName('${acc.id}', '${acc.name}')" class="text-slate-300 hover:text-blue-600 transition-all"><i class="fa-solid fa-pen-to-square text-[10px]"></i></button></div><p class="text-[8px] font-bold text-slate-300 uppercase font-mono tracking-tighter">ID: ${acc.id}</p></div></div></td>
+                                                        <td class="text-center">
+                                                            <div class="inline-flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200/50">
+                                                                <span class="font-black text-slate-800 tracking-widest text-xs min-w-[55px] font-mono">${isPinVisible ? acc.pin : '••••••'}</span>
+                                                                <div class="flex gap-1 items-center border-l border-slate-200 ml-1 pl-1">
+                                                                    <button onclick="window.togglePinVisibility('${acc.id}')" class="text-slate-400 hover:text-blue-600 transition-all px-1"><i class="fa-solid ${isPinVisible ? 'fa-eye-slash' : 'fa-eye'} text-[10px]"></i></button>
+                                                                    <button onclick="window.copyToClipboard('${acc.pin}')" class="text-slate-400 hover:text-emerald-600 transition-all px-1"><i class="fa-solid fa-copy text-[10px]"></i></button>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td class="p-6 text-right flex justify-end gap-1.5">
+                                                            <button onclick="window.downloadFullBackup('${acc.id}', '${acc.name}')" title="Export Master" class="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center shadow-sm"><i class="fa-solid ${window.adminState.isDownloading ? 'fa-spinner animate-spin' : 'fa-download'} text-xs"></i></button>
+                                                            <button onclick="window.updateAccountPin('${acc.id}', '${acc.name}')" title="Reset PIN" class="w-9 h-9 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm"><i class="fa-solid fa-key text-xs"></i></button>
+                                                            <button onclick="window.wipeTeacherData('${acc.id}', '${acc.name}')" title="Clear Data" class="w-9 h-9 bg-slate-100 text-amber-600 rounded-xl hover:bg-amber-600 hover:text-white transition-all flex items-center justify-center shadow-sm"><i class="fa-solid fa-broom text-xs"></i></button>
+                                                            <button onclick="window.deleteAccount('${acc.id}', '${acc.name}')" title="Hapus Akun" class="w-9 h-9 bg-slate-100 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center shadow-sm"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                                                        </td></tr>`}).join('')}</tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <!-- GUIDE VIEW -->
+                                    <div class="animate-fadeIn space-y-6 max-w-4xl mx-auto text-left pb-10">
+                                        <div class="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 text-left">
+                                            <h3 class="text-xl font-black uppercase text-slate-900 mb-8 flex items-center gap-3"><i class="fa-solid fa-circle-info text-blue-600"></i> Panduan Pengoperasian</h3>
+                                            
+                                            <div class="space-y-10 text-left">
+                                                <section>
+                                                    <h4 class="text-xs font-black uppercase text-blue-600 mb-4 tracking-widest">1. Keamanan & PIN Admin</h4>
+                                                    <p class="text-sm text-slate-500 leading-relaxed mb-4">Ubah PIN Admin secara berkala melalui menu <strong>Ubah PIN Admin</strong>. Anda akan diwajibkan memasukkan PIN lama sebelum dapat menyetel PIN baru demi keamanan sistem.</p>
+                                                    <div class="bg-blue-50 p-6 rounded-2xl border-l-4 border-blue-600">
+                                                        <p class="text-[10px] font-black text-blue-700 uppercase mb-2">Logout Instan</p>
+                                                        <p class="text-xs text-blue-600">Gunakan tombol Log Out untuk mengunci kembali panel administrator secara instan tanpa memuat ulang browser.</p>
+                                                    </div>
+                                                </section>
+
+                                                <section>
+                                                    <h4 class="text-xs font-black uppercase text-emerald-600 mb-4 tracking-widest">2. Master Export (ZIP & QR)</h4>
+                                                    <p class="text-sm text-slate-500 leading-relaxed">Gunakan tombol unduh master data untuk mendapatkan arsip lengkap guru yang berisi <strong>file CSV</strong> untuk database dan <strong>folder gambar QR</strong> siswa yang siap dicetak.</p>
+                                                </section>
+
+                                                <section>
+                                                    <h4 class="text-xs font-black uppercase text-rose-600 mb-4 tracking-widest">3. Kontrol Akun Guru</h4>
+                                                    <ul class="space-y-4 text-xs text-slate-500">
+                                                        <li class="flex gap-4"><div class="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center shrink-0"><i class="fa-solid fa-pen-to-square text-[10px]"></i></div><span><strong>Edit Nama:</strong> Mengubah sapaan dan profil nama di web client secara real-time.</span></li>
+                                                        <li class="flex gap-4"><div class="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center shrink-0"><i class="fa-solid fa-broom text-[10px]"></i></div><span><strong>Wipe Data:</strong> Membersihkan seluruh database (Siswa & Jurnal) guru tanpa menghapus akun loginnya.</span></li>
+                                                    </ul>
+                                                </section>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+
+                        <!-- MINI FOOTER KREDIT -->
+                        <footer class="mt-auto py-4 border-t border-slate-100 flex justify-between items-center px-8 shrink-0 bg-white shadow-inner">
+                            <div class="flex gap-4">
+                                <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="text-slate-300 hover:text-rose-500 transition-all"><i class="fa-brands fa-instagram text-sm"></i></a>
+                                <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="text-slate-300 hover:text-slate-800 transition-all"><i class="fa-brands fa-tiktok text-sm"></i></a>
+                                <a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="text-slate-300 hover:text-rose-600 transition-all"><i class="fa-brands fa-youtube text-sm"></i></a>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-tighter leading-none">MOHAMAD RIZKI, S.PD.,GR.</p>
+                                <p class="text-[6px] font-bold text-blue-400 uppercase tracking-widest leading-none mt-1">Innovative Educator & Fullstack Architect</p>
+                            </div>
+                        </footer>
+                    </main>
+
+                    <!-- MODAL COMPONENT -->
+                    ${window.adminState.modal.show ? `
+                    <div class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+                        <div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl text-center border-t-8 border-slate-900">
+                            <h3 class="text-xl font-black uppercase text-slate-800 mb-2">${window.adminState.modal.title}</h3>
+                            <p class="text-sm text-slate-500 font-medium mb-6">${window.adminState.modal.message}</p>
+                            ${window.adminState.modal.type === 'prompt' ? `
+                                <input id="modal-input" type="${window.adminState.modal.isPassword ? 'password' : 'text'}" 
+                                       value="${window.adminState.modal.inputValue}" 
+                                       placeholder="Ketik rahasia..."
+                                       class="w-full bg-slate-50 rounded-xl p-4 mb-6 border-2 border-blue-100 outline-none focus:border-slate-900 font-bold text-center">` : ''}
+                            <div class="flex gap-3">
+                                ${window.adminState.modal.type !== 'alert' ? `<button onclick="window.ui.closeModal()" class="flex-1 bg-slate-100 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400">Batal</button>` : ''}
+                                <button onclick="const val = document.getElementById('modal-input')?.value; const fn = window.adminState.modal.onConfirm; window.ui.closeModal(); if(fn) fn(val);" class="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">Lanjutkan</button>
+                            </div>
+                        </div>
+                    </div>` : ''}
+                </div>`;
+
+            // Restore search focus
+            if (window.adminState.lastFocusedId) {
+                const el = document.getElementById(window.adminState.lastFocusedId);
+                if (el) {
+                    el.focus();
+                    el.setSelectionRange(window.adminState.lastCaretPos, window.adminState.lastCaretPos);
+                }
+            }
+        };
+
+        const startAdmin = async () => { try { await signInAnonymously(auth); await window.initAdminData(); window.renderAdmin(); } catch (e) { console.error(e); } };
+        document.addEventListener('DOMContentLoaded', startAdmin);
+    </script>
+
+    <style>
+        :root { font-size: 13px; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; margin: 0; padding: 0; overflow: hidden; text-align: left; background: #f1f5f9; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scroll-dark::-webkit-scrollbar { width: 2px; }
+        .custom-scroll-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        button { cursor: pointer; border: none; outline: none; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="admin-root"><div class="h-screen flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-slate-400">Otoritas Berjalan...</div></div>
+</body>
+</html>
