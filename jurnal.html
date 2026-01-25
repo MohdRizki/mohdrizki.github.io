@@ -1048,16 +1048,20 @@
                         <div class="w-full flex justify-end mb-2">
                             <button onclick="window.switchCamera()" class="bg-white/80 backdrop-blur text-slate-600 w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:bg-white transition-all"><i class="fa-solid fa-camera-rotate"></i></button>
                         </div>
-                        <div id="reader" class="rounded-[2rem] md:rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center"></div>
                         
-                        ${window.appState.scanSuccessPopup.show ? `
-                        <div class="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn rounded-[2.5rem] md:rounded-[3.5rem]">
-                            <div class="bg-white p-4 rounded-full mb-4 shadow-xl animate-bounce">
-                                <i class="fa-solid fa-check text-4xl text-emerald-500"></i>
-                            </div>
-                            <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-1 text-center px-4">${window.appState.scanSuccessPopup.studentName}</h2>
-                            <p class="text-white/90 font-bold uppercase tracking-widest text-xs">BERHASIL HADIR</p>
-                        </div>` : ''}
+                        <!-- Wrapper kamera & overlay -->
+                        <div class="relative w-full aspect-square mb-8 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-8 border-slate-50 shadow-2xl shrink-0">
+                            <div id="reader" class="w-full h-full bg-slate-900"></div>
+                            
+                            ${window.appState.scanSuccessPopup.show ? `
+                            <div class="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn">
+                                <div class="bg-white p-4 rounded-full mb-4 shadow-xl animate-bounce">
+                                    <i class="fa-solid fa-check text-4xl text-emerald-500"></i>
+                                </div>
+                                <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-1 text-center px-4">${window.appState.scanSuccessPopup.studentName}</h2>
+                                <p class="text-white/90 font-bold uppercase tracking-widest text-xs">BERHASIL HADIR</p>
+                            </div>` : ''}
+                        </div>
 
                         <p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p>
                         <button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-camera mr-2"></i> Aktifkan Kamera</button>
