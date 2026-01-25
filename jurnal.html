@@ -77,7 +77,8 @@
             qrModal: { show: false, student: null },
             scannerLock: false,
             scanSuccessPopup: { show: false, studentName: '' },
-            cameraFacingMode: 'environment'
+            cameraFacingMode: 'environment',
+            isSpecialWork: false
         };
 
         // Mapping View ke Judul Bahasa Indonesia
@@ -287,10 +288,11 @@
             const isDup = window.appState.journals.some(j => j.tanggal === data.tanggal && j.kelas_mengajar === data.kelas_mengajar && j.jam_ke === data.jam_ke);
             if (isDup) { window.showNotif("Jurnal jam ini sudah ada!", "error"); return; }
             const isHoliday = window.appState.holidays.find(h => h.tanggal === data.tanggal);
-            if (isHoliday && !data.is_kerja_khusus) { window.showNotif("Hari Libur!", "error"); return; }
+            if (isHoliday && !window.appState.isSpecialWork) { window.showNotif("Hari Libur!", "error"); return; }
             
             data.createdAt = new Date().toISOString(); 
             data.semester = window.appState.settings.semester;
+            data.is_kerja_khusus = window.appState.isSpecialWork;
             
             const classStudents = window.appState.students.filter(s => String(s.kelas) === String(data.kelas_mengajar));
             const attToday = window.appState.attendance.filter(a => a.date === data.tanggal && String(a.studentClass) === String(data.kelas_mengajar));
@@ -303,6 +305,7 @@
             await addDoc(getColRef('journals'), data); 
             window.showNotif("Jurnal Tersimpan"); 
             window.setView('history');
+            window.appState.isSpecialWork = false;
         };
 
         window.handleSaveHoliday = async (e) => {
@@ -852,12 +855,12 @@
                 return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 animate-fadeIn text-left text-left">
                     <form onsubmit="window.handleSaveJournal(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm space-y-6 text-left">
                         <div class="grid grid-cols-2 gap-4 text-left">
-                            <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Tanggal (${window.getDayName(window.appState.selectedDate)})</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left ${window.isRedDay(window.appState.selectedDate) ? 'text-rose-600' : ''}"></div>
+                            <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Tanggal (${window.getDayName(window.appState.selectedDate)})</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left ${window.isRedDay(window.appState.selectedDate, window.appState.isSpecialWork) ? 'text-rose-600' : ''}"></div>
                             <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Kelas</label><select name="kelas_mengajar" onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div>
                         </div>
                         <div class="grid grid-cols-2 gap-4 text-left">
                             <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Jam Ke-</label><select name="jam_ke" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${[1,2,3,4,5,6,7,8].map(j => `<option value="${j}">Jam Ke-${j}</option>`).join('')}</select></div>
-                            <div class="flex items-end pb-3 text-left"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" onchange="window.renderApp()" class="w-4 h-4"><span class="text-[9px] font-black uppercase text-left">Hari Kerja Khusus</span></label></div>
+                            <div class="flex items-end pb-3 text-left"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" ${window.appState.isSpecialWork ? 'checked' : ''} onchange="window.appState.isSpecialWork = this.checked; window.renderApp();" class="w-4 h-4"><span class="text-[9px] font-black uppercase text-left">Hari Kerja Khusus</span></label></div>
                         </div>
                         <select name="mata_pelajaran" onchange="window.appState.selectedMapel = this.value; window.renderApp();" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih Mapel...</option>${filteredMapels.map(m => `<option value="${m.nama}" ${window.appState.selectedMapel===m.nama?'selected':''}>${m.nama}</option>`).join('')}</select>
                         <select onchange="document.getElementsByName('tujuan_pembelajaran')[0].value = this.value" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih TP Database...</option>${(filteredMapels.find(m => m.nama === window.appState.selectedMapel)?.tp || []).map(t => `<option value="${t}">${t}</option>`).join('')}</select>
@@ -1088,6 +1091,7 @@
         
         /* Desktop Scale Adjustment */
         @media (min-width: 1024px) {
+            body { zoom: 0.8; }
             main { transform-origin: top center; }
             .max-w-5xl { max-width: 1100px; }
         }
