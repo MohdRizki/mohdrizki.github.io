@@ -41,6 +41,21 @@
         const auth = getAuth(app);
         const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
+        // --- GLOBAL HELPER ---
+        window.getDayName = (dateStr) => {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('id-ID', { weekday: 'long' });
+        };
+
+        window.isHoliday = (dateStr) => {
+            if (!dateStr) return false;
+            const date = new Date(dateStr);
+            const isSunday = date.getDay() === 0;
+            const isNationalHoliday = window.appState.holidays.some(h => h.tanggal === dateStr);
+            return isSunday || isNationalHoliday;
+        };
+
         // --- 2. GLOBAL STATE ---
         window.appState = {
             currentView: 'dashboard',
@@ -69,16 +84,14 @@
             reportViewType: 'rekap', 
             lastFocusedId: null,
             lastCaretPos: 0,
-            sidebarCollapsed: false,
             mobileMenuOpen: false,
             scannerActive: false,
             html5QrCode: null,
+            cameraFacingMode: "environment", // Default camera (back)
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
             scannerLock: false,
-            scanSuccessPopup: { show: false, studentName: '' },
-            cameraFacingMode: 'environment',
-            isSpecialWork: false
+            scanSuccessPopup: { show: false, studentName: '' } 
         };
 
         // Mapping View ke Judul Bahasa Indonesia
@@ -96,20 +109,6 @@
         };
 
         // --- 3. UI HELPERS ---
-        window.getDayName = (dateStr) => {
-            const date = new Date(dateStr);
-            const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-            return days[date.getDay()];
-        };
-
-        window.isRedDay = (dateStr, isSpecialWork = false) => {
-            if (isSpecialWork) return false;
-            const date = new Date(dateStr);
-            const isSunday = date.getDay() === 0;
-            const isHoliday = window.appState.holidays.some(h => h.tanggal === dateStr);
-            return isSunday || isHoliday;
-        };
-
         window.showNotif = (msg, tipe = 'success') => {
             const wadah = document.getElementById('notif-anchor');
             if (!wadah) return;
@@ -288,11 +287,12 @@
             const isDup = window.appState.journals.some(j => j.tanggal === data.tanggal && j.kelas_mengajar === data.kelas_mengajar && j.jam_ke === data.jam_ke);
             if (isDup) { window.showNotif("Jurnal jam ini sudah ada!", "error"); return; }
             const isHoliday = window.appState.holidays.find(h => h.tanggal === data.tanggal);
-            if (isHoliday && !window.appState.isSpecialWork) { window.showNotif("Hari Libur!", "error"); return; }
+            
+            // Logic Holiday: Allowed if checked special work day
+            if (isHoliday && !data.is_kerja_khusus) { window.showNotif("Hari Libur!", "error"); return; }
             
             data.createdAt = new Date().toISOString(); 
             data.semester = window.appState.settings.semester;
-            data.is_kerja_khusus = window.appState.isSpecialWork;
             
             const classStudents = window.appState.students.filter(s => String(s.kelas) === String(data.kelas_mengajar));
             const attToday = window.appState.attendance.filter(a => a.date === data.tanggal && String(a.studentClass) === String(data.kelas_mengajar));
@@ -305,7 +305,6 @@
             await addDoc(getColRef('journals'), data); 
             window.showNotif("Jurnal Tersimpan"); 
             window.setView('history');
-            window.appState.isSpecialWork = false;
         };
 
         window.handleSaveHoliday = async (e) => {
@@ -389,6 +388,12 @@
         };
 
         // --- 9. SCANNER (OPTIMIZED CONTINUOUS RAPID SCANNING) ---
+        window.switchCamera = async () => {
+            window.appState.cameraFacingMode = window.appState.cameraFacingMode === "environment" ? "user" : "environment";
+            await window.stopScanner();
+            setTimeout(window.startScanner, 200);
+        };
+
         window.startScanner = async () => {
             const container = document.getElementById('reader');
             if (!container || window.appState.isScannerStarting) return;
@@ -459,7 +464,10 @@
                             setTimeout(() => { window.appState.scannerLock = false; }, 2000);
                         }
                     }
-                );
+                ).catch(err => {
+                    console.warn(err);
+                    window.showNotif("Kamera tidak ditemukan / Akses ditolak", "error");
+                });
             } catch (err) { 
                 console.error("Camera Error:", err);
                 window.showNotif("Gagal akses kamera.", "error"); 
@@ -467,12 +475,6 @@
             } finally { 
                 window.appState.isScannerStarting = false; 
             }
-        };
-
-        window.switchCamera = async () => {
-            window.appState.cameraFacingMode = window.appState.cameraFacingMode === 'environment' ? 'user' : 'environment';
-            window.showNotif(`Menukar Kamera...`);
-            await window.startScanner();
         };
 
         window.stopScanner = async () => {
@@ -539,8 +541,8 @@
                         
                         let header = "No,Nama,Kelas";
                         for (let i = 1; i <= daysInMonth; i++) {
-                            const dateStr = `${targetMonth}-${String(i).padStart(2, '0')}`;
-                            header += `,${i}(${window.getDayName(dateStr).slice(0,3)})`;
+                            const dStr = `${targetMonth}-${String(i).padStart(2, '0')}`;
+                            header += `,${i}(${window.getDayName(dStr).substring(0,3)})`;
                         }
                         header += ",H,I,S,A\n";
                         csv = header;
@@ -569,6 +571,7 @@
                         csv = "Nama,Kls,H,I,S,A,Smt\n";
                         window.appState.students
                             .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                            .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
                             .forEach(s => { 
                                 const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem && a.date.startsWith(targetMonth)); 
                                 csv += `${s.nama_siswa},${s.kelas},${att.filter(x=>x.status==='Hadir').length},${att.filter(x=>x.status==='Izin').length},${att.filter(x=>x.status==='Sakit').length},${att.filter(x=>x.status==='Alpa').length},${curSem}\n`; 
@@ -600,7 +603,7 @@
                         const daysInMonth = new Date(year, month, 0).getDate();
                         const dayHeaders = Array.from({length: daysInMonth}, (_, i) => {
                             const dStr = `${targetMonth}-${String(i+1).padStart(2, '0')}`;
-                            return `${i+1}\n(${window.getDayName(dStr).slice(0,1)})`;
+                            return `${i+1}\n(${window.getDayName(dStr).substring(0,3)})`;
                         });
                         const head = [['No', 'Nama', ...dayHeaders, 'H', 'I', 'S', 'A']];
                         const body = window.appState.students
@@ -619,18 +622,7 @@
                                 });
                                 return [i+1, s.nama_siswa, ...dayCells, attMonth.filter(x=>x.status==='Hadir').length, attMonth.filter(x=>x.status==='Izin').length, attMonth.filter(x=>x.status==='Sakit').length, attMonth.filter(x=>x.status==='Alpa').length]; 
                             });
-                        docPdf.autoTable({ 
-                            head, body, startY: 30, 
-                            styles: { fontSize: 5, cellPadding: 0.5 }, 
-                            columnStyles: { 1: { cellWidth: 35 } },
-                            didParseCell: function(data) {
-                                if (data.section === 'head' && data.column.index > 1 && data.column.index < (daysInMonth + 2)) {
-                                    const dayIdx = data.column.index - 2;
-                                    const dateStr = `${targetMonth}-${String(dayIdx + 1).padStart(2, '0')}`;
-                                    if (window.isRedDay(dateStr)) data.cell.styles.textColor = [225, 29, 72];
-                                }
-                            }
-                        });
+                        docPdf.autoTable({ head, body, startY: 30, styles: { fontSize: 6, cellPadding: 1 }, columnStyles: { 1: { cellWidth: 40 } } });
                     } else {
                         const body = window.appState.students
                             .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
@@ -682,10 +674,10 @@
         };
 
         window.renderNavItem = (view, icon, label) => {
-            const active = window.appState.currentView === view; const collapsed = window.appState.sidebarCollapsed;
+            const active = window.appState.currentView === view; 
             return `<button onclick="window.setView('${view}')" class="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'} w-full text-left outline-none border-none group">
                 <div class="w-6 text-center text-lg shrink-0"><i class="fa-solid ${icon}"></i></div>
-                <span class="text-[11px] font-black uppercase tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-full opacity-100'} text-left">${label}</span>
+                <span class="text-[11px] font-black uppercase tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 w-full opacity-100 text-left">${label}</span>
             </button>`;
         };
 
@@ -700,23 +692,20 @@
             const root = document.getElementById('root');
             if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse text-center">Menghubungkan...</div>`; return; }
             if (!window.appState.isAuthenticated) {
-                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">Digitalisasi Administrasi Guru</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Buka Sistem</button></form></div></div>`;
+                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">MASUKKAN KODE AKSES ANDA!</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Buka Sistem</button></form></div></div>`;
                 lucide.createIcons(); return;
             }
 
-            const view = window.appState.currentView; const collapsed = window.appState.sidebarCollapsed;
+            const view = window.appState.currentView; 
             const currentTitle = viewTitles[view] || view;
 
             root.innerHTML = `
                 <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden text-left">
                     <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter text-left">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none text-center"><i class="fa-solid fa-bars text-center"></i></button></header>
-                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col shrink-0 bg-white border-r transition-all duration-300 ${collapsed ? 'w-24' : 'w-60'} w-full md:relative absolute inset-y-0 left-0 z-[150] h-full shadow-2xl md:shadow-none">
+                    <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 w-full md:w-64 md:relative absolute inset-y-0 left-0 z-[150] h-full shadow-2xl md:shadow-none">
                         <div class="flex items-center gap-4 px-6 py-8 relative shrink-0 text-left">
                             <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0 text-center"><i class="fa-solid fa-graduation-cap text-center"></i></div>
-                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 scale-0' : 'opacity-100 scale-100'} text-left">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
-                            <button onclick="window.appState.sidebarCollapsed = !window.appState.sidebarCollapsed; window.renderApp();" class="hidden md:flex absolute top-8 -right-2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center text-slate-400 hover:text-blue-600 shadow-lg transition-all z-[110] outline-none text-center">
-                                <i class="fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-[10px] text-center"></i>
-                            </button>
+                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 opacity-100 scale-100 text-left">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
                         </div>
                         <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10 text-left">
                             ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
@@ -765,7 +754,20 @@
                 const today = new Date().toISOString().split('T')[0];
                 const journalToday = window.appState.journals.filter(j => j.tanggal === today).length;
                 const hadirToday = window.appState.attendance.filter(a => a.date === today && a.status === 'Hadir').length;
-                const dateObj = new Date();
+                const todayDate = new Date();
+                const todayDayName = todayDate.toLocaleDateString('id-ID', { weekday: 'long' });
+                const todayDateStr = todayDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                // Calendar Logic
+                const currentMonth = new Date();
+                const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+                const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+                let calendarHTML = '';
+                for (let i = 0; i < firstDay; i++) calendarHTML += `<div></div>`;
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const isToday = i === todayDate.getDate();
+                    calendarHTML += `<div class="text-center text-[10px] font-bold py-1 ${isToday ? 'bg-blue-600 text-white rounded-lg shadow-md' : 'text-slate-600'}">${i}</div>`;
+                }
 
                 return `
                 <div class="space-y-6 animate-fadeIn text-left">
@@ -775,7 +777,7 @@
                             <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-all duration-700"></div>
                             <div class="relative z-10">
                                 <span class="bg-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md mb-4 inline-block">Sistem Administrasi Pro</span>
-                                <h1 class="text-2xl md:text-4xl font-black mb-2 tracking-tighter leading-tight">Selamat datang,<br><span class="text-blue-200">${window.appState.settings.nama_guru || 'rekan guru'}!</span></h1>
+                                <h1 class="text-2xl md:text-4xl font-black mb-2 tracking-tighter leading-tight">Selamat datang,<br><span class="text-blue-200">${window.appState.settings.nama_guru || 'Rekan Guru'}</span></h1>
                                 <p class="opacity-80 text-[10px] font-bold uppercase tracking-widest mb-8">Semester ${curSem} • ${window.appState.settings.nama_sekolah || 'Digitalisasi Sekolah'}</p>
                                 <div class="flex flex-wrap gap-3">
                                     <button onclick="window.setView('scanner')" class="bg-white text-blue-600 px-6 py-3.5 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2">
@@ -788,22 +790,27 @@
                             </div>
                         </div>
 
-                        <!-- Card Statistik Cepat / Widget Tanggal -->
-                        <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col justify-center items-center text-center relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-full h-1 bg-rose-600"></div>
-                            <div class="text-center mb-4">
-                                <p class="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mb-1">${window.getDayName(today)}</p>
-                                <h3 class="text-5xl font-black text-slate-900 tracking-tighter leading-none">${dateObj.getDate()}</h3>
-                                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">${dateObj.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</p>
+                        <!-- Card Calendar & Stats -->
+                        <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
+                            <div class="mb-4">
+                                <h3 class="text-xl font-black text-slate-800 tracking-tight">${todayDayName}</h3>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${todayDateStr}</p>
                             </div>
-                            <div class="w-full h-px bg-slate-100 my-4"></div>
-                            <div class="grid grid-cols-7 gap-1 w-full text-[8px] font-black text-slate-300">
-                                ${['M','S','S','R','K','J','S'].map((d,i) => `<div class="${i===0?'text-rose-500':''}">${d}</div>`).join('')}
-                                ${Array.from({length: 31}, (_, i) => {
-                                    const d = i + 1;
-                                    const isToday = d === dateObj.getDate();
-                                    return `<div class="py-1 rounded-md ${isToday ? 'bg-blue-600 text-white' : ''}">${d}</div>`;
-                                }).slice(0, 28).join('')}
+                            <div class="grid grid-cols-7 gap-1 mb-4">
+                                ${['M','S','S','R','K','J','S'].map(d => `<div class="text-center text-[8px] font-black text-slate-300 uppercase">${d}</div>`).join('')}
+                                ${calendarHTML}
+                            </div>
+                            <div class="w-full h-px bg-slate-100 my-2"></div>
+                            <div class="flex justify-around w-full mt-2">
+                                <div class="text-center">
+                                    <p class="text-xs font-black text-blue-600">${journalToday}</p>
+                                    <p class="text-[7px] font-black text-slate-400 uppercase">Jurnal</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-xs font-black text-emerald-600">${hadirToday}</p>
+                                    <p class="text-[7px] font-black text-slate-400 uppercase">Hadir</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -849,18 +856,21 @@
             if (v === 'input') {
                 const students = window.appState.students
                     .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                    .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)) // Sorted alphabetically
                     .filter(s => s.nama_siswa.toLowerCase().includes(window.appState.attendanceSearch.toLowerCase()));
                 const filteredMapels = window.appState.mapels.filter(m => String(m.kelas) === String(window.appState.selectedKelas));
+                const isHolidayDate = window.isHoliday(window.appState.selectedDate);
+                const dateLabelColor = isHolidayDate ? 'text-rose-500' : 'text-slate-400';
 
                 return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 animate-fadeIn text-left text-left">
                     <form onsubmit="window.handleSaveJournal(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm space-y-6 text-left">
                         <div class="grid grid-cols-2 gap-4 text-left">
-                            <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Tanggal (${window.getDayName(window.appState.selectedDate)})</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left ${window.isRedDay(window.appState.selectedDate, window.appState.isSpecialWork) ? 'text-rose-600' : ''}"></div>
+                            <div class="text-left"><label class="text-[9px] font-black ${dateLabelColor} uppercase mb-1 block text-left text-left">Tanggal (${window.getDayName(window.appState.selectedDate)})</label><input type="date" name="tanggal" required value="${window.appState.selectedDate}" onchange="window.appState.selectedDate = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"></div>
                             <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Kelas</label><select name="kelas_mengajar" onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div>
                         </div>
                         <div class="grid grid-cols-2 gap-4 text-left">
                             <div class="text-left"><label class="text-[9px] font-black text-slate-400 uppercase mb-1 block text-left text-left">Jam Ke-</label><select name="jam_ke" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${[1,2,3,4,5,6,7,8].map(j => `<option value="${j}">Jam Ke-${j}</option>`).join('')}</select></div>
-                            <div class="flex items-end pb-3 text-left"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" ${window.appState.isSpecialWork ? 'checked' : ''} onchange="window.appState.isSpecialWork = this.checked; window.renderApp();" class="w-4 h-4"><span class="text-[9px] font-black uppercase text-left">Hari Kerja Khusus</span></label></div>
+                            <div class="flex items-end pb-3 text-left"><label class="flex items-center gap-2 cursor-pointer text-left"><input type="checkbox" name="is_kerja_khusus" class="w-4 h-4"><span class="text-[9px] font-black uppercase text-left">Hari Kerja Khusus</span></label></div>
                         </div>
                         <select name="mata_pelajaran" onchange="window.appState.selectedMapel = this.value; window.renderApp();" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih Mapel...</option>${filteredMapels.map(m => `<option value="${m.nama}" ${window.appState.selectedMapel===m.nama?'selected':''}>${m.nama}</option>`).join('')}</select>
                         <select onchange="document.getElementsByName('tujuan_pembelajaran')[0].value = this.value" class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><option value="">Pilih TP Database...</option>${(filteredMapels.find(m => m.nama === window.appState.selectedMapel)?.tp || []).map(t => `<option value="${t}">${t}</option>`).join('')}</select>
@@ -926,18 +936,22 @@
                     </div>
 
                     <div class="space-y-4">
-                        ${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => `
+                        ${historyJournals.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(j => {
+                            const isHolidayDate = window.isHoliday(j.tanggal);
+                            const shouldBeRed = isHolidayDate && !j.is_kerja_khusus;
+                            return `
                         <div class="bg-white rounded-[2.5rem] p-6 md:p-8 border shadow-sm group hover:shadow-xl transition-all relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                            <div class="absolute top-0 left-0 w-2 h-full ${shouldBeRed ? 'bg-rose-500' : 'bg-blue-600'}"></div>
                             <div class="flex flex-col md:flex-row justify-between gap-6">
                                 <div class="flex-grow space-y-4">
                                     <div class="flex flex-wrap items-center gap-3">
-                                        <span class="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${window.isRedDay(j.tanggal, j.is_kerja_khusus) ? 'text-rose-600 bg-rose-50' : ''}">${window.getDayName(j.tanggal)}, ${j.tanggal}</span>
+                                        <span class="${shouldBeRed ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'} px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">${window.getDayName(j.tanggal)}, ${j.tanggal}</span>
                                         <span class="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">Jam ${j.jam_ke}</span>
                                         <span class="bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">Kelas ${j.kelas_mengajar}</span>
+                                        ${j.is_kerja_khusus ? '<span class="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">Kerja Khusus</span>' : ''}
                                     </div>
                                     <div class="space-y-2">
-                                        <h5 class="text-xl font-black uppercase tracking-tighter text-slate-900 leading-tight">${j.mata_pelajaran}</h5>
+                                        <h5 class="text-xl font-black uppercase tracking-tighter ${shouldBeRed ? 'text-rose-600' : 'text-slate-900'} leading-tight">${j.mata_pelajaran}</h5>
                                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                             <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tujuan Pembelajaran (TP)</p>
                                             <p class="text-xs font-semibold text-slate-600 leading-relaxed">${j.tujuan_pembelajaran || '-'}</p>
@@ -974,7 +988,7 @@
                                 </div>
                             </div>
                         </div>
-                        `).join('')}
+                        `}).join('')}
                         ${historyJournals.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center">Data Jurnal Tidak Ditemukan</p>' : ''}
                     </div>
                 </div>`;
@@ -983,6 +997,7 @@
             if (v === 'reports') {
                 const reportStudents = window.appState.students
                     .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
+                    .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
                     .filter(s => s.nama_siswa.toLowerCase().includes(window.appState.reportSearch.toLowerCase()));
 
                 const year = parseInt(window.appState.reportMonth.split('-')[0]);
@@ -990,13 +1005,14 @@
                 const daysInMonth = new Date(year, month, 0).getDate();
 
                 return `<div class="space-y-6 animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left"><div class="flex flex-wrap items-center gap-4 w-full md:w-auto text-left"><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left text-left">Bulan Laporan</label><input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Cari Siswa</label><input id="report-search-input" dir="ltr" type="text" placeholder="Cari nama..." value="${window.appState.reportSearch}" oninput="window.handleSearchInput(this, 'reportSearch')" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Kelas</label><select onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Tampilan</label><div class="bg-slate-100 p-1 rounded-xl flex gap-1 text-center"><button onclick="window.appState.reportViewType='rekap'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rekap'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rekap</button><button onclick="window.appState.reportViewType='rinci'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rinci'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rinci</button></div></div></div><div class="flex gap-2 shrink-0 text-center"><button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase text-center">CSV</button><button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 text-center text-center"><i class="fa-solid fa-file-pdf text-center"></i> PDF</button></div></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] border shadow-sm overflow-hidden text-left"><div class="overflow-x-auto custom-scroll text-left text-left text-left"><table class="w-full text-left text-[11px] min-w-max text-left text-left text-left"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10 text-left text-left"><tr><th class="py-5 px-6 sticky left-0 bg-slate-50 z-20 text-left text-left">No</th><th class="py-5 px-4 sticky left-12 bg-slate-50 z-20 text-left text-left">Nama Siswa</th>${window.appState.reportViewType === 'rekap' ? `<th class="py-5 px-4 text-center">H</th><th class="py-5 px-4 text-center">I</th><th class="py-5 px-4 text-center">S</th><th class="py-5 px-4 text-center">A</th>` : Array.from({length: daysInMonth}, (_, i) => {
-                    const dateStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`;
-                    const isRed = window.isRedDay(dateStr);
-                    return `<th class="py-5 px-2 text-center text-[9px] w-8 text-center text-center ${isRed ? 'text-rose-600' : ''}">${i+1}<br><span class="opacity-50">${window.getDayName(dateStr).slice(0,1)}</span></th>`;
-                }).join('')}</tr></thead><tbody class="divide-y text-left text-left text-left">${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => { const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth)); if (window.appState.reportViewType === 'rekap') { return `<tr class="text-left text-left"><td class="py-5 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left">${s.nama_siswa}</td><td class="py-5 px-4 text-center text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td></tr>`; } else { return `<tr class="text-left text-left"><td class="py-4 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left text-left">${s.nama_siswa}</td>${Array.from({length: daysInMonth}, (_, i) => { const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`; const attDay = attMonth.find(a => a.date === dayStr); let label = ""; let color = "text-slate-200"; if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; } else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; } else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; } else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; } return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50 text-center text-center">${label || '-'}</td>`; }).join('')}</tr>`; } }).join('')}</tbody></table>${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center text-center">Belum ada data siswa</p>' : ''}</div></div></div>`;
+                                    const dStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`;
+                                    const dName = window.getDayName(dStr).substring(0, 3);
+                                    const isHol = window.isHoliday(dStr);
+                                    return `<th class="py-5 px-2 text-center text-[7px] w-8 text-center ${isHol ? 'text-rose-500' : ''}"><div class="leading-tight">${i+1}<br><span class="opacity-60 uppercase">${dName}</span></div></th>`;
+                                }).join('')}</tr></thead><tbody class="divide-y text-left text-left text-left">${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => { const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth)); if (window.appState.reportViewType === 'rekap') { return `<tr class="text-left text-left"><td class="py-5 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left">${s.nama_siswa}</td><td class="py-5 px-4 text-center text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td></tr>`; } else { return `<tr class="text-left text-left"><td class="py-4 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left text-left">${s.nama_siswa}</td>${Array.from({length: daysInMonth}, (_, i) => { const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`; const attDay = attMonth.find(a => a.date === dayStr); let label = ""; let color = "text-slate-200"; const isHol = window.isHoliday(dayStr); if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; } else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; } else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; } else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; } else if(isHol) { label = "-"; color = "text-rose-500 font-black"; } return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50 text-center text-center">${label || '-'}</td>`; }).join('')}</tr>`; } }).join('')}</tbody></table>${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center text-center">Belum ada data siswa</p>' : ''}</div></div></div>`;
             }
 
-            if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan</button></form></div><div class="space-y-2 pb-10 text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left">${window.getDayName(h.tanggal)}, ${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div>`).join('')}</div></div>`;
+            if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center">Simpan</button></form></div><div class="space-y-2 pb-10 text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div>`).join('')}</div></div>`;
             
             if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn space-y-8 pb-10 text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 border shadow-sm space-y-6 text-left"><h4 class="font-black text-xl uppercase mb-4 leading-none text-slate-800 text-left">Profil Guru</h4><div class="space-y-4 text-left"><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div class="space-y-2 border-t pt-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left">KLS ${k}</span></label>`).join('')}</div></div></div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Simpan Profil</button></form>
                 <div class="bg-amber-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-amber-100 space-y-6 text-left">
@@ -1008,6 +1024,9 @@
             if (v === 'scanner') return `
                 <div class="max-w-md mx-auto animate-fadeIn relative h-full flex items-center justify-center">
                     <div class="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 border shadow-sm text-center flex flex-col items-center w-full relative overflow-hidden text-center">
+                        <div class="w-full flex justify-end mb-2">
+                            <button onclick="window.switchCamera()" class="bg-white/80 backdrop-blur text-slate-600 w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:bg-white transition-all"><i class="fa-solid fa-camera-rotate"></i></button>
+                        </div>
                         <div id="reader" class="rounded-[2rem] md:rounded-[2.5rem] overflow-hidden bg-slate-900 aspect-square w-full mb-8 border-8 border-slate-50 shadow-2xl shrink-0 text-center"></div>
                         ${window.appState.scanSuccessPopup.show ? `
                         <div class="absolute inset-x-6 md:inset-x-10 top-6 md:top-10 aspect-square rounded-[2rem] md:rounded-[2.5rem] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center z-[110] animate-fadeIn text-center text-center">
@@ -1016,10 +1035,7 @@
                             <p class="text-[8px] md:text-[9px] font-bold text-emerald-600 uppercase tracking-widest text-center">Berhasil Presensi</p>
                         </div>` : ''}
                         <p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p>
-                        <div class="flex gap-2 w-full">
-                            <button onclick="window.startScanner()" class="flex-grow bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Aktifkan Kamera</button>
-                            <button onclick="window.switchCamera()" class="bg-slate-100 text-slate-700 px-6 py-5 rounded-2xl font-black text-center shadow-md transition-all hover:bg-slate-200"><i class="fa-solid fa-camera-rotate"></i></button>
-                        </div>
+                        <button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center">Aktifkan Kamera</button>
                     </div>
                 </div>`;
             
@@ -1091,7 +1107,6 @@
         
         /* Desktop Scale Adjustment */
         @media (min-width: 1024px) {
-            body { zoom: 0.8; }
             main { transform-origin: top center; }
             .max-w-5xl { max-width: 1100px; }
         }
