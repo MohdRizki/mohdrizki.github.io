@@ -103,7 +103,8 @@
             qrModal: { show: false, student: null },
             editModal: { show: false, id: null, name: '' }, 
             scannerLock: false,
-            scanSuccessPopup: { show: false, studentName: '' } 
+            scanSuccessPopup: { show: false, studentName: '' },
+            lastScans: {} // Track timestamp scan terakhir per siswa (Anti-Spam)
         };
 
         // Mapping View ke Judul Bahasa Indonesia
@@ -167,7 +168,6 @@
             const pinValue = e.target.pin.value;
             window.appState.isLoggingIn = true;
             
-            // Render ulang tombol loading
             const btn = e.target.querySelector('button');
             if(btn) {
                 btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Memeriksa...';
@@ -181,7 +181,6 @@
                 snapshot.forEach(doc => { if (doc.data().pin?.toString() === pinValue) foundTeacherId = doc.id; });
                 
                 if (foundTeacherId) {
-                    // EFEK TRANSISI SMOOTH
                     const loginCard = document.querySelector('.bg-white.p-8');
                     if(loginCard) {
                         loginCard.style.transition = "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)";
@@ -189,15 +188,13 @@
                         loginCard.style.opacity = "0";
                     }
 
-                    window.showNotif("Login Berhasil! Menyiapkan Dashboard...");
-                    
-                    // Jeda sedikit untuk animasi sebelum switch view
+                    // Notif login dihapus agar transisi lebih cepat terasa
                     setTimeout(() => {
                         window.appState.teacherId = foundTeacherId;
                         window.appState.isAuthenticated = true;
                         window.initDataListeners();
                         window.setView('dashboard');
-                    }, 600);
+                    }, 500);
                 } else { 
                     window.showNotif("Kode PIN Tidak Terdaftar!", "error"); 
                     window.appState.isLoggingIn = false;
@@ -457,9 +454,14 @@
             document.body.removeChild(tempDiv); const content = await zip.generateAsync({type:"blob"}); saveAs(content, "Database_QR_Siswa.zip"); window.showNotif("Selesai");
         };
 
-        // --- 9. SCANNER (OPTIMIZED CONTINUOUS RAPID SCANNING) ---
+        // --- 9. SCANNER (OPTIMIZED LOGIC) ---
         window.switchCamera = async () => {
             window.appState.cameraFacingMode = window.appState.cameraFacingMode === "environment" ? "user" : "environment";
+            await window.stopScanner();
+            setTimeout(window.startScanner, 200);
+        };
+
+        window.restartScanner = async () => {
             await window.stopScanner();
             setTimeout(window.startScanner, 200);
         };
@@ -479,11 +481,11 @@
                 window.appState.html5QrCode = new window.Html5Qrcode("reader");
                 
                 const config = { 
-                    fps: 15, // FPS lebih tinggi untuk responsivitas
+                    fps: 15, 
                     qrbox: { width: 250, height: 250 },
                     aspectRatio: 1.0,
                     showTorchButtonIfSupported: true,
-                    disableFlip: false // Biarkan library menangani flip dasar
+                    disableFlip: false 
                 };
                 
                 window.appState.scannerActive = true; 
@@ -492,65 +494,64 @@
                     { facingMode: window.appState.cameraFacingMode }, 
                     config, 
                     async (text) => {
-                        // 1. LOCK SEGERA: Cegah pembacaan berulang frame milidetik berikutnya
-                        if (window.appState.scannerLock) return;
-                        window.appState.scannerLock = true; 
-
-                        // 2. PAUSE KAMERA: Efek "Freeze" agar pengguna tahu scan tertangkap
-                        try { window.appState.html5QrCode.pause(true); } catch(e) {}
-
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         
                         if (student) {
-                            if (navigator.vibrate) navigator.vibrate(200);
+                            const now = Date.now();
+                            const lastTime = window.appState.lastScans[student.id] || 0;
                             
-                            // Cek lokal data presensi hari ini
-                            const isAlreadyPresent = window.appState.attendance.some(a => 
+                            // Logika: Jika sudah hadir hari ini
+                            const isPresent = window.appState.attendance.some(a => 
                                 a.studentId === student.id && 
                                 a.date === window.appState.selectedDate && 
                                 a.status === 'Hadir'
                             );
 
-                            if (!isAlreadyPresent) {
-                                // --- PROSES HADIR ---
-                                await window.markAttendance(student.id, 'Hadir');
+                            if (isPresent) {
+                                // SPAM FILTER: Jika baru saja scan dalam 5 menit terakhir, abaikan total (Silent)
+                                if (now - lastTime < 300000) return;
                                 
-                                // Tampilkan Popup Overlay
-                                window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
-                                window.renderApp();
-
-                                // Reset Scanner setelah 2.5 detik
-                                setTimeout(() => {
-                                    window.appState.scanSuccessPopup.show = false;
-                                    window.renderApp(); // Hilangkan popup
-                                    
-                                    // Resume Kamera & Buka Lock
-                                    try { window.appState.html5QrCode.resume(); } catch(e) {}
-                                    window.appState.scannerLock = false; 
-                                }, 2500); 
-                            } else {
-                                // --- SUDAH HADIR ---
+                                // Jika sudah > 5 menit, baru tampilkan notif "Sudah Masuk" lagi
+                                window.appState.lastScans[student.id] = now;
                                 window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
-                                
-                                // Resume lebih cepat untuk warning
-                                setTimeout(() => { 
-                                    try { window.appState.html5QrCode.resume(); } catch(e) {}
-                                    window.appState.scannerLock = false; 
-                                }, 2000);
+                                return;
                             }
-                        } else {
-                            // --- QR TIDAK DIKENAL ---
-                            window.showNotif("QR Code tidak terdaftar dalam database.", "error");
+
+                            // --- PROSES ABSEN BARU ---
+                            if (window.appState.scannerLock) return;
+                            window.appState.scannerLock = true;
+                            window.appState.lastScans[student.id] = now;
+
+                            // 1. Pause Kamera (Freeze Frame)
+                            try { window.appState.html5QrCode.pause(true); } catch(e) {}
+
+                            // 2. Simpan Data
+                            await window.markAttendance(student.id, 'Hadir');
                             
-                            setTimeout(() => { 
+                            // 3. Tampilkan Overlay (TANPA NOTIF TEXT LAIN)
+                            window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
+                            window.renderApp();
+
+                            // 4. Auto Reset setelah 2.5 detik
+                            setTimeout(() => {
+                                window.appState.scanSuccessPopup.show = false;
+                                window.renderApp();
+                                
+                                // Resume Kamera
                                 try { window.appState.html5QrCode.resume(); } catch(e) {}
                                 window.appState.scannerLock = false; 
-                            }, 1500);
+                            }, 2500); 
+
+                        } else {
+                            // QR Tidak Dikenal
+                            if (!window.appState.scannerLock) {
+                                window.appState.scannerLock = true;
+                                window.showNotif("QR Code tidak terdaftar.", "error");
+                                setTimeout(() => { window.appState.scannerLock = false; }, 2000);
+                            }
                         }
                     },
-                    (errorMessage) => { 
-                        // Abaikan error scanning frame kosong 
-                    }
+                    (errorMessage) => { }
                 );
             } catch (err) { 
                 console.error("Camera Error:", err);
@@ -847,7 +848,7 @@
                         ${window.appState.mobileMenuOpen ? `<button onclick="window.appState.mobileMenuOpen = false; window.renderApp();" class="md:hidden absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-center"><i class="fa-solid fa-xmark text-center"></i></button>` : ''}
                     </aside>
                     <main class="flex-grow h-full relative bg-slate-50 flex flex-col overflow-hidden text-left">
-                        <div class="max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 flex flex-col h-full overflow-hidden text-left">
+                        <div class="max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 flex flex-col h-full overflow-hidden text-left animate-fadeIn">
                             <header class="mb-4 md:mb-6 flex justify-between items-center bg-white p-4 md:p-5 rounded-[2rem] border shadow-sm shrink-0 text-left">
                                 <div><h2 class="text-base md:text-xl font-black uppercase tracking-tight text-slate-800 leading-none text-left">${currentTitle}</h2><p class="text-slate-400 text-[8px] font-black uppercase tracking-widest truncate max-w-[150px] md:max-w-none mt-1 text-left">${window.appState.settings.nama_sekolah || 'Digitalisasi ADM'}</p></div>
                                 <div class="flex items-center gap-2 text-center">
@@ -1194,12 +1195,12 @@
                 const month = parseInt(window.appState.reportMonth.split('-')[1]);
                 const daysInMonth = new Date(year, month, 0).getDate();
 
-                return `<div class="space-y-6 animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left"><div class="flex flex-wrap items-center gap-4 w-full md:w-auto text-left"><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left text-left">Bulan Laporan</label><input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Cari Siswa</label><input id="report-search-input" dir="ltr" type="text" placeholder="Cari nama..." value="${window.appState.reportSearch}" oninput="window.handleSearchInput(this, 'reportSearch')" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Kelas</label><select onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Tampilan</label><div class="bg-slate-100 p-1 rounded-xl flex gap-1 text-center"><button onclick="window.appState.reportViewType='rekap'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rekap'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rekap</button><button onclick="window.appState.reportViewType='rinci'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rinci'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rinci</button></div></div></div><div class="flex gap-2 shrink-0 text-center"><button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase text-center"><i class="fa-solid fa-file-csv mr-2"></i> CSV</button><button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 text-center text-center"><i class="fa-solid fa-file-pdf mr-2"></i> PDF</button></div></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] border shadow-sm overflow-hidden text-left"><div class="overflow-x-auto custom-scroll text-left text-left text-left"><table class="w-full text-left text-[11px] min-w-max text-left text-left text-left"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10 text-left text-left"><tr><th class="py-5 px-6 sticky left-0 bg-slate-50 z-20 text-left text-left">No</th><th class="py-5 px-4 sticky left-12 bg-slate-50 z-20 text-left text-left">Nama Siswa</th>${window.appState.reportViewType === 'rekap' ? `<th class="py-5 px-4 text-center">H</th><th class="py-5 px-4 text-center">I</th><th class="py-5 px-4 text-center">S</th><th class="py-5 px-4 text-center">A</th>` : Array.from({length: daysInMonth}, (_, i) => {
+                return `<div class="space-y-6 animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-6 md:p-8 border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left"><div class="flex flex-wrap items-center gap-4 w-full md:w-auto text-left"><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left text-left">Bulan Laporan</label><input type="month" value="${window.appState.reportMonth}" onchange="window.appState.reportMonth = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Cari Siswa</label><input id="report-search-input" dir="ltr" type="text" placeholder="Cari nama..." value="${window.appState.reportSearch}" oninput="window.handleSearchInput(this, 'reportSearch')" class="bg-slate-50 rounded-xl px-5 py-3 font-black outline-none border-none text-xs text-left"></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Kelas</label><select onchange="window.appState.selectedKelas = this.value; window.renderApp();" class="bg-slate-50 rounded-xl px-5 py-3 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}" ${k==window.appState.selectedKelas?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div class="flex flex-col gap-2 text-left"><label class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-left">Tampilan</label><div class="bg-slate-100 p-1 rounded-xl flex gap-1 text-center"><button onclick="window.appState.reportViewType='rekap'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rekap'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rekap</button><button onclick="window.appState.reportViewType='rinci'; window.renderApp();" class="px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all text-center text-center ${window.appState.reportViewType==='rinci'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}">Rinci</button></div></div></div><div class="flex gap-2 shrink-0 text-center"><button onclick="window.exportFormal('reports', 'csv')" class="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase text-center"><i class="fa-solid fa-file-csv mr-2"></i> CSV</button><button onclick="window.exportFormal('reports', 'pdf')" class="bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 text-center text-center"><i class="fa-solid fa-file-pdf mr-2"></i> PDF</button></div></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] border shadow-sm overflow-hidden text-left"><div class="overflow-x-auto custom-scroll text-left text-left text-left"><table class="w-full text-left text-[11px] min-w-max text-left text-left text-left"><thead class="text-slate-400 uppercase font-black border-b bg-slate-50 sticky top-0 x-10 text-left text-left"><tr><th class="py-5 px-2 w-10 text-center sticky left-0 bg-slate-50 z-20">No</th><th class="py-5 px-4 sticky left-12 bg-slate-50 z-20 text-left text-left">Nama Siswa</th>${window.appState.reportViewType === 'rekap' ? `<th class="py-5 px-4 text-center">H</th><th class="py-5 px-4 text-center">I</th><th class="py-5 px-4 text-center">S</th><th class="py-5 px-4 text-center">A</th>` : Array.from({length: daysInMonth}, (_, i) => {
                                     const dStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`;
                                     const dName = window.getDayName(dStr).substring(0, 3);
                                     const isHol = window.isHoliday(dStr);
                                     return `<th class="py-5 px-2 text-center text-[7px] w-8 text-center ${isHol ? 'text-rose-500' : ''}"><div class="leading-tight">${i+1}<br><span class="opacity-60 uppercase">${dName}</span></div></th>`;
-                                }).join('')}</tr></thead><tbody class="divide-y text-left text-left text-left">${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => { const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth)); if (window.appState.reportViewType === 'rekap') { return `<tr class="text-left text-left"><td class="py-5 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left">${s.nama_siswa}</td><td class="py-5 px-4 text-center text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td></tr>`; } else { return `<tr class="text-left text-left"><td class="py-4 px-6 font-black text-slate-400 bg-white sticky left-0 text-left text-left">${idx+1}</td><td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left text-left">${s.nama_siswa}</td>${Array.from({length: daysInMonth}, (_, i) => { const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`; const attDay = attMonth.find(a => a.date === dayStr); let label = ""; let color = "text-slate-200"; const isHol = window.isHoliday(dayStr); if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; } else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; } else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; } else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; } else if(isHol) { label = "-"; color = "text-rose-500 font-black"; } return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50 text-center text-center">${label || '-'}</td>`; }).join('')}</tr>`; } }).join('')}</tbody></table>${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center text-center">Belum ada data siswa</p>' : ''}</div></div></div>`;
+                                }).join('')}</tr></thead><tbody class="divide-y text-left text-left text-left">${reportStudents.sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa)).map((s, idx) => { const attMonth = window.appState.attendance.filter(a => a.studentId === s.id && a.date.startsWith(window.appState.reportMonth)); if (window.appState.reportViewType === 'rekap') { return `<tr class="text-left text-left"><td class="py-5 px-2 w-10 font-black text-slate-400 bg-white sticky left-0 text-center">${idx+1}</td><td class="py-5 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left">${s.nama_siswa}</td><td class="py-5 px-4 text-center text-center"><span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Hadir').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-sky-50 text-sky-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Izin').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Sakit').length}</span></td><td class="py-5 px-4 text-center text-center"><span class="bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black text-center text-center">${attMonth.filter(x=>x.status==='Alpa').length}</span></td></tr>`; } else { return `<tr class="text-left text-left"><td class="py-4 px-2 w-10 font-black text-slate-400 bg-white sticky left-0 text-center">${idx+1}</td><td class="py-4 px-4 font-black uppercase text-slate-800 bg-white sticky left-12 shadow-[4px_0_4px_-2px_rgba(0,0,0,0.05)] text-left text-left text-left">${s.nama_siswa}</td>${Array.from({length: daysInMonth}, (_, i) => { const dayStr = `${window.appState.reportMonth}-${String(i+1).padStart(2, '0')}`; const attDay = attMonth.find(a => a.date === dayStr); let label = ""; let color = "text-slate-200"; const isHol = window.isHoliday(dayStr); if (attDay?.status === 'Hadir') { label = "H"; color = "text-blue-600 font-black"; } else if (attDay?.status === 'Izin') { label = "I"; color = "text-sky-500 font-black"; } else if (attDay?.status === 'Sakit') { label = "S"; color = "text-amber-500 font-black"; } else if (attDay?.status === 'Alpa') { label = "A"; color = "text-rose-500 font-black"; } else if(isHol) { label = "-"; color = "text-rose-500 font-black"; } return `<td class="py-4 px-1 text-center text-[10px] ${color} border-x border-slate-50 text-center text-center">${label || '-'}</td>`; }).join('')}</tr>`; } }).join('')}</tbody></table>${reportStudents.length === 0 ? '<p class="text-center py-20 text-slate-300 font-black text-[10px] uppercase text-center text-center">Belum ada data siswa</p>' : ''}</div></div></div>`;
             }
 
             if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan</button></form></div><div class="space-y-2 pb-10 text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div>`).join('')}</div></div>`;
@@ -1255,8 +1256,8 @@
                             `<button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-camera"></i> Mulai Scan
                             </button>` : 
-                            `<button onclick="window.stopScanner()" class="w-full bg-rose-50 text-rose-500 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-stop"></i> Stop Kamera
+                            `<button onclick="window.restartScanner()" class="w-full bg-rose-50 text-rose-500 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-rotate-right"></i> Restart Kamera
                             </button>`
                         }
                     </div>
