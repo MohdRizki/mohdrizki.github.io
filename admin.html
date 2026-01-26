@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Central - Jurnal Guru Pro</title>
+    <title>Pusat SiJuru - Jurnal Guru Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     
     <!-- Libraries -->
@@ -16,7 +16,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { initializeFirestore, collection, doc, setDoc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, limit, orderBy, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeFirestore, collection, doc, setDoc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, limit, orderBy, writeBatch, serverTimestamp, where, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDU04V8KpMbBc28-bpP9PM_LQP06Kx9Cwk",
@@ -34,9 +34,10 @@
 
         window.adminState = {
             isAuthenticated: false,
-            currentView: 'accounts', // accounts, guide
+            currentView: 'accounts',
             loginError: '',
             accounts: [],
+            teacherProfiles: {}, 
             visiblePins: {}, 
             logs: [],
             globalStats: { totalStudents: 0, totalJournals: 0, totalAttendance: 0 },
@@ -47,7 +48,24 @@
             lastFocusedId: null,
             lastCaretPos: 0,
             adminConfig: { pin: "ADMIN123" },
-            modal: { show: false, type: 'alert', title: '', message: '', onConfirm: null, inputValue: '', isPassword: false }
+            modal: { show: false, type: 'alert', title: '', message: '', onConfirm: null, inputValue: '', isPassword: false },
+            transfer: { sourceId: '', targetId: '', selectedClass: '' },
+            viewData: { activeTeacherId: null, activeClass: null, students: [], loadingStudents: false },
+            
+            // UI States
+            isDesktopSidebarCollapsed: false,
+            isMobileSidebarOpen: false
+        };
+
+        // --- UI TOGGLES ---
+        window.toggleDesktopSidebar = () => {
+            window.adminState.isDesktopSidebarCollapsed = !window.adminState.isDesktopSidebarCollapsed;
+            window.renderAdmin(); // Re-render shell
+        };
+
+        window.toggleMobileSidebar = () => {
+            window.adminState.isMobileSidebarOpen = !window.adminState.isMobileSidebarOpen;
+            window.renderAdmin();
         };
 
         // --- UI UTILS ---
@@ -65,7 +83,6 @@
             window.adminState.searchQuery = el.value;
             window.adminState.lastFocusedId = el.id;
             window.adminState.lastCaretPos = el.selectionStart;
-            // Hanya render konten tabel, tidak layout utama
             window.renderContent(); 
         };
 
@@ -74,23 +91,19 @@
             window.renderContent();
         };
 
-        // LINK GURU DIPERBAIKI
         window.openTeacherWeb = () => {
             window.open('https://mohdrizki.github.io/jurnal', '_blank');
         };
 
-        window.setView = (view) => {
+        window.setView = async (view) => {
             if (window.adminState.currentView === view) return; 
             window.adminState.currentView = view;
-            
-            // Update UI State tanpa full render
-            document.getElementById('nav-accounts').className = `w-full flex items-center gap-3 p-4 rounded-xl transition-all text-left ${view === 'accounts' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'}`;
-            document.getElementById('nav-guide').className = `w-full flex items-center gap-3 p-4 rounded-xl transition-all text-left ${view === 'guide' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'}`;
-            
-            // Update Header Title
-            const titleEl = document.getElementById('header-title');
-            if(titleEl) titleEl.innerText = view === 'accounts' ? 'Management Akun' : 'Panduan Sistem';
-            
+            window.adminState.isMobileSidebarOpen = false;
+            window.renderAdmin(); 
+
+            if(view === 'data') {
+                await window.fetchTeacherProfiles();
+            }
             window.renderContent();
         };
 
@@ -100,45 +113,222 @@
             window.adminState.visiblePins = {};
             window.adminState.searchQuery = '';
             window.adminState.currentView = 'accounts';
-            // Hancurkan layout agar render ulang bersih saat login lagi
             const root = document.getElementById('admin-root');
             root.innerHTML = ''; 
             window.renderAdmin();
         };
 
-        // --- CUSTOM UI MODALS ---
-        window.ui = {
-            alert: (title, message) => {
-                window.adminState.modal = { show: true, type: 'alert', title, message };
-                window.renderModal();
-            },
-            confirm: (title, message, onConfirm) => {
-                window.adminState.modal = { show: true, type: 'confirm', title, message, onConfirm };
-                window.renderModal();
-            },
-            prompt: (title, message, defaultValue, onConfirm, isPassword = false) => {
-                window.adminState.modal = { show: true, type: 'prompt', title, message, inputValue: defaultValue, onConfirm, isPassword };
-                window.renderModal();
-            },
-            closeModal: () => {
-                window.adminState.modal.show = false;
-                window.renderModal();
+        // --- DATA MANAGEMENT FUNCTIONS ---
+        window.fetchTeacherProfiles = async () => {
+            for (const acc of window.adminState.accounts) {
+                const docSnap = await getDoc(doc(db, 'artifacts', appId, 'users', acc.id, 'settings', 'profile'));
+                if (docSnap.exists()) {
+                    window.adminState.teacherProfiles[acc.id] = docSnap.data();
+                }
+            }
+            window.renderContent();
+        };
+
+        window.setTransferSource = (id) => {
+            window.adminState.transfer.sourceId = id;
+            window.adminState.transfer.selectedClass = ''; 
+            window.renderContent();
+        };
+
+        window.setTransferTarget = (id) => {
+            window.adminState.transfer.targetId = id;
+            window.renderContent();
+        };
+
+        window.setTransferClass = (cls) => {
+            window.adminState.transfer.selectedClass = cls;
+            window.renderContent();
+        };
+
+        window.executeTransfer = () => {
+            const { sourceId, targetId, selectedClass } = window.adminState.transfer;
+            const sourceName = window.adminState.accounts.find(a => a.id === sourceId)?.name;
+            const targetName = window.adminState.accounts.find(a => a.id === targetId)?.name;
+
+            if(!sourceId || !targetId || !selectedClass) return window.ui.alert("Data Tidak Lengkap", "Pilih guru asal, guru tujuan, dan kelas.");
+            if(sourceId === targetId) return window.ui.alert("Kesalahan", "Guru asal dan tujuan tidak boleh sama.");
+
+            window.ui.confirm("Transfer Data", `Pindahkan kelas ${selectedClass} beserta seluruh siswanya dari ${sourceName} ke ${targetName}?`, async () => {
+                try {
+                    const batch = writeBatch(db);
+                    const studentsRef = collection(db, 'artifacts', appId, 'users', sourceId, 'students');
+                    const q = query(studentsRef, where('kelas', '==', selectedClass));
+                    const snapshot = await getDocs(q);
+
+                    snapshot.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        const newDocRef = doc(db, 'artifacts', appId, 'users', targetId, 'students', docSnap.id);
+                        const oldDocRef = doc(db, 'artifacts', appId, 'users', sourceId, 'students', docSnap.id);
+                        batch.set(newDocRef, data);
+                        batch.delete(oldDocRef);
+                    });
+
+                    const sourceProfileRef = doc(db, 'artifacts', appId, 'users', sourceId, 'settings', 'profile');
+                    const targetProfileRef = doc(db, 'artifacts', appId, 'users', targetId, 'settings', 'profile');
+                    batch.update(sourceProfileRef, { kelas_diampu: arrayRemove(selectedClass) });
+                    batch.update(targetProfileRef, { kelas_diampu: arrayUnion(selectedClass) });
+
+                    await batch.commit();
+                    await window.fetchTeacherProfiles();
+                    window.adminState.transfer = { sourceId: '', targetId: '', selectedClass: '' };
+                    window.logActivity("TRANSFER_DATA", `Transfer Kelas ${selectedClass}: ${sourceName} -> ${targetName}`);
+                    window.ui.alert("Berhasil", "Data kelas dan siswa berhasil dipindahkan.");
+                } catch (e) {
+                    console.error(e);
+                    window.ui.alert("Gagal", "Terjadi kesalahan saat transfer data: " + e.message);
+                }
+            });
+        };
+
+        window.deleteClass = (teacherId, className) => {
+            const teacherName = window.adminState.accounts.find(a => a.id === teacherId)?.name || 'Guru';
+            window.ui.confirm("Hapus Kelas Permanen", `PERINGATAN: Menghapus KELAS ${className} akan menghapus SELURUH DATA SISWA di dalamnya dari akun ${teacherName}. Lanjutkan?`, async () => {
+                try {
+                    const batch = writeBatch(db);
+                    const studentsRef = collection(db, 'artifacts', appId, 'users', teacherId, 'students');
+                    const q = query(studentsRef, where('kelas', '==', className));
+                    const snapshot = await getDocs(q);
+                    snapshot.forEach((docSnap) => { batch.delete(docSnap.ref); });
+                    const profileRef = doc(db, 'artifacts', appId, 'users', teacherId, 'settings', 'profile');
+                    batch.update(profileRef, { kelas_diampu: arrayRemove(className) });
+                    await batch.commit();
+                    await window.fetchTeacherProfiles();
+                    await window.logActivity("DELETE_CLASS", `Menghapus Kelas ${className} dari ${teacherName}`);
+                    window.ui.alert("Terhapus", `Kelas ${className} dan datanya telah dihapus.`);
+                } catch(e) {
+                    console.error(e);
+                    window.ui.alert("Gagal", "Gagal menghapus data: " + e.message);
+                }
+            });
+        };
+
+        // --- STUDENT MANAGEMENT ---
+        window.renameStudent = (teacherId, studentId, oldName) => {
+             window.ui.prompt("Ubah Nama Siswa", `Masukkan nama baru untuk siswa:`, oldName, async (newName) => {
+                if(newName && newName !== oldName) {
+                    try {
+                        const studentRef = doc(db, 'artifacts', appId, 'users', teacherId, 'students', studentId);
+                        await updateDoc(studentRef, { nama_siswa: newName });
+                        // Refresh data lokal
+                        window.adminState.viewData.students = window.adminState.viewData.students.map(s => 
+                            s.id === studentId ? { ...s, nama_siswa: newName } : s
+                        );
+                        // Refresh View
+                        window.renderStudentModal();
+                        // Regenerate QR
+                        setTimeout(() => {
+                            const idx = window.adminState.viewData.students.findIndex(s => s.id === studentId);
+                            const container = document.getElementById(`qr-gen-${idx}`);
+                            if(container) {
+                                container.innerHTML = '';
+                                new QRCode(container, { text: newName, width: 128, height: 128 });
+                            }
+                        }, 100);
+                        
+                        await window.logActivity("RENAME_STUDENT", `Ubah Siswa ${oldName} -> ${newName}`);
+                    } catch(e) {
+                        console.error(e);
+                        window.ui.alert("Gagal", "Kesalahan: " + e.message);
+                    }
+                }
+             });
+        };
+
+        window.deleteStudent = (teacherId, studentId, studentName) => {
+             window.ui.confirm("Hapus Siswa", `Hapus data siswa ${studentName}?`, async () => {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'users', teacherId, 'students', studentId));
+                    // Update lokal
+                    window.adminState.viewData.students = window.adminState.viewData.students.filter(s => s.id !== studentId);
+                    window.renderStudentModal();
+                    // Regenerate QRs for remaining to avoid index mismatch visually
+                    setTimeout(() => {
+                        window.adminState.viewData.students.forEach((s, idx) => {
+                            const container = document.getElementById(`qr-gen-${idx}`);
+                            if(container && container.innerHTML === '') {
+                                new QRCode(container, { text: s.nama_siswa, width: 128, height: 128 });
+                            }
+                        });
+                    }, 100);
+                    
+                    await window.logActivity("DELETE_STUDENT", `Menghapus Siswa ${studentName}`);
+                } catch(e) {
+                    console.error(e);
+                    window.ui.alert("Gagal", "Gagal menghapus: " + e.message);
+                }
+             });
+        };
+
+        window.downloadSingleQR = (name, containerId) => {
+            const container = document.getElementById(containerId);
+            const img = container.querySelector('img');
+            const canvas = container.querySelector('canvas');
+            if (img) {
+                saveAs(img.src, `QR_${name.replace(/\s+/g, '_')}.png`);
+            } else if (canvas) {
+                canvas.toBlob(blob => saveAs(blob, `QR_${name.replace(/\s+/g, '_')}.png`));
+            } else {
+                window.ui.alert("Kesalahan", "QR Code belum siap.");
             }
         };
 
-        // --- LOGGING SYSTEM ---
+        window.openClassDetails = async (teacherId, className) => {
+            window.adminState.viewData.activeTeacherId = teacherId;
+            window.adminState.viewData.activeClass = className;
+            window.adminState.viewData.loadingStudents = true;
+            window.adminState.viewData.students = [];
+            window.renderStudentModal();
+
+            try {
+                const q = query(collection(db, 'artifacts', appId, 'users', teacherId, 'students'), where('kelas', '==', className));
+                const snap = await getDocs(q);
+                // Simpan ID dokumen untuk operasi update/delete
+                window.adminState.viewData.students = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .sort((a, b) => (a.nama_siswa || '').localeCompare(b.nama_siswa || ''));
+            } catch (e) {
+                console.error(e);
+            } finally {
+                window.adminState.viewData.loadingStudents = false;
+                window.renderStudentModal();
+                setTimeout(() => {
+                    window.adminState.viewData.students.forEach((s, idx) => {
+                        const container = document.getElementById(`qr-gen-${idx}`);
+                        if(container && container.innerHTML === '') {
+                            new QRCode(container, { text: s.nama_siswa, width: 128, height: 128 });
+                        }
+                    });
+                }, 100);
+            }
+        };
+
+        window.closeStudentModal = () => {
+            window.adminState.viewData.activeClass = null;
+            window.renderStudentModal();
+        };
+
+        // --- CUSTOM UI MODALS ---
+        window.ui = {
+            alert: (title, message) => { window.adminState.modal = { show: true, type: 'alert', title, message }; window.renderModal(); },
+            confirm: (title, message, onConfirm) => { window.adminState.modal = { show: true, type: 'confirm', title, message, onConfirm }; window.renderModal(); },
+            prompt: (title, message, defaultValue, onConfirm, isPassword = false) => { window.adminState.modal = { show: true, type: 'prompt', title, message, inputValue: defaultValue, onConfirm, isPassword }; window.renderModal(); },
+            closeModal: () => { window.adminState.modal.show = false; window.renderModal(); }
+        };
+
+        // --- LOGGING ---
         window.logActivity = async (action, details) => {
             try {
                 const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
-                await addDoc(logsRef, {
-                    action,
-                    details,
-                    timestamp: new Date().toISOString()
-                });
+                await addDoc(logsRef, { action, details, timestamp: new Date().toISOString() });
             } catch (e) { console.error("Log error:", e); }
         };
 
-        // --- DATA INITIALIZATION ---
+        // --- INIT ---
         window.initAdminData = async () => {
             const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'admin', 'config');
             const configSnap = await getDoc(configRef);
@@ -153,20 +343,15 @@
 
             const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
             onSnapshot(logsRef, (snap) => {
-                window.adminState.logs = snap.docs
-                    .map(d => ({ id: d.id, ...d.data() }))
-                    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-                    .slice(0, 15);
+                window.adminState.logs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 15);
                 if (window.adminState.isAuthenticated) window.renderLogs();
             });
         };
 
         window.calculateGlobalStats = async () => {
             window.adminState.isCalculatingStats = true;
-            // Update icon spinner only
             const spinIcon = document.getElementById('refresh-icon');
             if(spinIcon) spinIcon.classList.add('animate-spin');
-            
             let students = 0, journals = 0, attendance = 0;
             try {
                 for (const acc of window.adminState.accounts) {
@@ -190,14 +375,13 @@
             if (passInput.value === window.adminState.adminConfig.pin) {
                 window.adminState.isAuthenticated = true;
                 window.adminState.loginError = '';
-                passInput.value = ''; // Clean input logic
-                window.renderAdmin(); // Build layout
+                passInput.value = ''; 
+                window.renderAdmin(); 
                 window.calculateGlobalStats();
             } else {
                 window.adminState.loginError = 'PIN Administrator Salah!';
                 passInput.value = '';
                 passInput.focus();
-                // Re-render only login error part/text if needed, but simple re-render is fast for login screen
                 window.renderAdmin(); 
             }
         };
@@ -213,14 +397,10 @@
                                 window.adminState.adminConfig.pin = newPin;
                                 await window.logActivity("CHANGE_PIN", "PIN Administrator diperbarui");
                                 window.ui.alert("Berhasil", "PIN Administrator telah diganti.");
-                            } else {
-                                window.ui.alert("Gagal", "PIN minimal harus 4 karakter.");
-                            }
+                            } else { window.ui.alert("Gagal", "PIN minimal harus 4 karakter."); }
                         });
                     }, 300);
-                } else {
-                    window.ui.alert("Akses Ditolak", "PIN lama salah. Perubahan dibatalkan.");
-                }
+                } else { window.ui.alert("Akses Ditolak", "PIN lama salah. Perubahan dibatalkan."); }
             }, true);
         };
 
@@ -276,10 +456,9 @@
 
         window.downloadFullBackup = async (teacherId, teacherName) => {
             window.adminState.isDownloading = true;
-            window.renderContent(); // Refresh button state
+            window.renderContent(); 
             const zip = new JSZip();
             const folder = zip.folder(`DataMaster_${teacherName.replace(/\s+/g, '_')}`);
-            const qrFolder = folder.folder("QR_Siswa_Images");
             try {
                 const cols = [{ n: 'students', f: ['nama_siswa', 'kelas'] },{ n: 'journals', f: ['tanggal', 'mata_pelajaran', 'jam_ke', 'tujuan_pembelajaran'] },{ n: 'attendance', f: ['studentName', 'date', 'status'] }];
                 for (const c of cols) {
@@ -288,22 +467,6 @@
                     snap.forEach(d => csv += c.f.map(field => `"${d.data()[field] || ''}"`).join(',') + '\n');
                     folder.file(`${c.n}.csv`, csv);
                 }
-                const studentsSnap = await getDocs(collection(db, 'artifacts', appId, 'users', teacherId, 'students'));
-                const tempDiv = document.createElement('div');
-                tempDiv.style.display = 'none';
-                document.body.appendChild(tempDiv);
-                for (const sDoc of studentsSnap.docs) {
-                    const student = sDoc.data();
-                    tempDiv.innerHTML = '';
-                    new QRCode(tempDiv, { text: student.nama_siswa, width: 512, height: 512, correctLevel: QRCode.CorrectLevel.H });
-                    await new Promise(r => setTimeout(r, 150));
-                    const canvas = tempDiv.querySelector('canvas');
-                    if (canvas) {
-                        const base64Data = canvas.toDataURL("image/png").split(',')[1];
-                        qrFolder.file(`KLS${student.kelas}_${student.nama_siswa.replace(/\s+/g, '_')}.png`, base64Data, {base64: true});
-                    }
-                }
-                document.body.removeChild(tempDiv);
                 const content = await zip.generateAsync({ type: "blob" });
                 saveAs(content, `BACKUP_MASTER_${teacherName.toUpperCase()}.zip`);
             } catch (e) { console.error(e); } finally {
@@ -312,9 +475,7 @@
             }
         };
 
-        // --- RENDER FUNCTIONS (OPTIMIZED) ---
-        
-        // 1. Render Log Activity Sidebar (Partial Update)
+        // --- RENDERERS ---
         window.renderLogs = () => {
             const logContainer = document.getElementById('log-container');
             if(logContainer) {
@@ -327,10 +488,16 @@
             }
         };
 
-        // 2. Render Main Content (Tabel/Guide)
         window.renderContent = () => {
             const contentArea = document.getElementById('main-content-area');
             if(!contentArea) return;
+
+            const titleEl = document.getElementById('header-title');
+            if(titleEl) {
+                if(window.adminState.currentView === 'accounts') titleEl.innerText = 'Manajemen Akun';
+                else if(window.adminState.currentView === 'data') titleEl.innerText = 'Manajemen Data';
+                else titleEl.innerText = 'Panduan Sistem';
+            }
 
             const filteredAcc = window.adminState.accounts.filter(a => (a.name || '').toLowerCase().includes(window.adminState.searchQuery.toLowerCase()));
             
@@ -338,7 +505,7 @@
             if(window.adminState.currentView === 'accounts') {
                 html = `
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left animate-fadeIn">
-                        <div class="group bg-white p-6 rounded-[2.5rem] border shadow-sm hover:border-blue-600 transition-all">
+                         <div class="group bg-white p-6 rounded-[2.5rem] border shadow-sm hover:border-blue-600 transition-all">
                             <div class="flex justify-between items-center mb-4"><div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shadow-inner"><i class="fa-solid fa-users"></i></div><i class="fa-solid fa-circle-nodes text-slate-100 group-hover:text-blue-200 transition-all"></i></div>
                             <p class="text-[9px] font-black uppercase text-slate-400 mb-1">Populasi Siswa</p>
                             <h4 class="text-3xl font-black text-slate-800 tracking-tighter">${window.adminState.globalStats.totalStudents}</h4>
@@ -355,7 +522,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn mt-8">
                         <div class="space-y-6">
                             <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
                                 <h3 class="font-black uppercase mb-6 text-slate-800 flex items-center gap-2 text-sm"><i class="fa-solid fa-plus-circle text-blue-600"></i> Register Akun</h3>
@@ -399,10 +566,84 @@
                             </div>
                         </div>
                     </div>`;
+            } else if (window.adminState.currentView === 'data') {
+                const teachers = window.adminState.accounts;
+                const { sourceId, targetId, selectedClass } = window.adminState.transfer;
+                const sourceClasses = sourceId && window.adminState.teacherProfiles[sourceId]?.kelas_diampu ? window.adminState.teacherProfiles[sourceId].kelas_diampu : [];
+
+                html = `
+                    <div class="animate-fadeIn space-y-8 pb-10">
+                        <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                            <h3 class="text-lg font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><i class="fa-solid fa-shuffle text-indigo-600"></i> Alat Transfer Kelas</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                <div class="space-y-2">
+                                    <label class="text-[9px] font-black uppercase text-slate-400 ml-2">Dari Guru (Asal)</label>
+                                    <select onchange="window.setTransferSource(this.value)" class="w-full bg-slate-50 rounded-xl p-3 text-xs font-bold outline-none border border-slate-200">
+                                        <option value="">-- Pilih Asal --</option>
+                                        ${teachers.map(t => `<option value="${t.id}" ${sourceId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-[9px] font-black uppercase text-slate-400 ml-2">Pilih Kelas</label>
+                                    <select onchange="window.setTransferClass(this.value)" class="w-full bg-slate-50 rounded-xl p-3 text-xs font-bold outline-none border border-slate-200" ${!sourceId ? 'disabled' : ''}>
+                                        <option value="">-- Pilih Kelas --</option>
+                                        ${sourceClasses.map(c => `<option value="${c}" ${selectedClass === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-[9px] font-black uppercase text-slate-400 ml-2">Ke Guru (Tujuan)</label>
+                                    <select onchange="window.setTransferTarget(this.value)" class="w-full bg-slate-50 rounded-xl p-3 text-xs font-bold outline-none border border-slate-200">
+                                        <option value="">-- Pilih Tujuan --</option>
+                                        ${teachers.map(t => `<option value="${t.id}" ${targetId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <button onclick="window.executeTransfer()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-indigo-700 transition-all h-[42px]">
+                                    <i class="fa-solid fa-paper-plane mr-2"></i> Proses Transfer
+                                </button>
+                            </div>
+                            <p class="text-[9px] text-slate-400 mt-3 italic">* Memindahkan seluruh data siswa dan status kelas ke akun tujuan.</p>
+                        </div>
+
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${filteredAcc.map(acc => {
+                                const profile = window.adminState.teacherProfiles[acc.id];
+                                const classes = profile?.kelas_diampu || [];
+                                return `
+                                <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:border-slate-300 transition-all overflow-hidden p-6">
+                                    <div class="flex items-center gap-4 mb-6 border-b border-slate-50 pb-4">
+                                        <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-black text-lg">${acc.name ? acc.name.charAt(0) : '?'}</div>
+                                        <div>
+                                            <h4 class="font-black text-slate-800 uppercase text-base">${acc.name}</h4>
+                                            <p class="text-[10px] font-mono text-slate-400 bg-slate-50 inline-block px-2 py-0.5 rounded-lg mt-1">${acc.id}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="space-y-3">
+                                        ${classes.length > 0 ? classes.map(c => `
+                                            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-indigo-200 transition-all group relative">
+                                                <div class="flex justify-between items-center mb-3">
+                                                    <h5 class="font-bold text-slate-700 uppercase tracking-tight">${c}</h5>
+                                                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                                </div>
+                                                <div class="flex gap-2">
+                                                    <button onclick="window.openClassDetails('${acc.id}', '${c}')" class="flex-1 bg-white text-indigo-600 py-2 rounded-lg text-[10px] font-black uppercase border border-slate-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all" title="Kelola Siswa">
+                                                        <i class="fa-solid fa-users mr-1"></i> Kelola Siswa
+                                                    </button>
+                                                     <button onclick="window.deleteClass('${acc.id}', '${c}')" class="w-8 bg-white text-slate-400 py-2 rounded-lg border border-slate-200 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all flex items-center justify-center" title="Hapus Kelas">
+                                                        <i class="fa-solid fa-trash-can text-xs"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        `).join('') : '<div class="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200"><p class="text-xs text-slate-400 italic">Belum ada data kelas</p></div>'}
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
             } else {
                 html = `
                     <div class="animate-fadeIn space-y-6 max-w-4xl mx-auto text-left pb-10">
-                        <div class="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 text-left">
+                         <div class="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 text-left">
                             <h3 class="text-xl font-black uppercase text-slate-900 mb-8 flex items-center gap-3"><i class="fa-solid fa-circle-info text-blue-600"></i> Panduan Pengoperasian</h3>
                             <div class="space-y-10 text-left">
                                 <section>
@@ -428,26 +669,60 @@
                         </div>
                     </div>`;
             }
-
-            // ANTI FLICKER: Hanya replace innerHTML, container utama tetap
             contentArea.innerHTML = html;
-
-            // Restore focus (Penting untuk search)
             if (window.adminState.lastFocusedId) {
                 const el = document.getElementById(window.adminState.lastFocusedId);
-                if (el) {
-                    el.focus();
-                    el.setSelectionRange(window.adminState.lastCaretPos, window.adminState.lastCaretPos);
-                }
+                if (el) { el.focus(); el.setSelectionRange(window.adminState.lastCaretPos, window.adminState.lastCaretPos); }
             }
         };
 
-        // 3. Render Modal Only
-        window.renderModal = () => {
+        window.renderStudentModal = () => {
             const modalContainer = document.getElementById('modal-container');
             if(!modalContainer) return;
-            
-            if (window.adminState.modal.show) {
+
+            if(window.adminState.viewData.activeClass) {
+                const { activeClass, students, loadingStudents, activeTeacherId } = window.adminState.viewData;
+                modalContainer.innerHTML = `
+                    <div class="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+                        <div class="bg-white rounded-[2.5rem] p-8 max-w-4xl w-full shadow-2xl border-t-8 border-indigo-600 h-[80vh] flex flex-col">
+                            <div class="flex justify-between items-center mb-6 shrink-0">
+                                <div>
+                                    <h3 class="text-2xl font-black uppercase text-slate-800">Kelas ${activeClass}</h3>
+                                    <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Total Siswa: ${students.length}</p>
+                                </div>
+                                <button onclick="window.closeStudentModal()" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            
+                            <div class="flex-grow overflow-y-auto custom-scroll pr-2">
+                                ${loadingStudents ? '<div class="flex h-full items-center justify-center"><i class="fa-solid fa-spinner animate-spin text-4xl text-indigo-200"></i></div>' : `
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        ${students.map((s, idx) => `
+                                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center text-center relative group">
+                                                <div id="qr-gen-${idx}" class="mb-3 bg-white p-2 rounded-lg shadow-sm"></div>
+                                                
+                                                <div class="flex gap-2 mb-2">
+                                                    <button onclick="window.renameStudent('${activeTeacherId}', '${s.id}', '${s.nama_siswa}')" class="w-7 h-7 bg-white text-blue-500 rounded-lg shadow-sm border border-blue-100 hover:bg-blue-500 hover:text-white transition-all flex items-center justify-center" title="Edit Nama">
+                                                        <i class="fa-solid fa-pen text-[10px]"></i>
+                                                    </button>
+                                                    <button onclick="window.downloadSingleQR('${s.nama_siswa}', 'qr-gen-${idx}')" class="w-7 h-7 bg-white text-emerald-500 rounded-lg shadow-sm border border-emerald-100 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center" title="Download QR">
+                                                        <i class="fa-solid fa-download text-[10px]"></i>
+                                                    </button>
+                                                    <button onclick="window.deleteStudent('${activeTeacherId}', '${s.id}', '${s.nama_siswa}')" class="w-7 h-7 bg-white text-rose-500 rounded-lg shadow-sm border border-rose-100 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center" title="Hapus Siswa">
+                                                        <i class="fa-solid fa-trash-can text-[10px]"></i>
+                                                    </button>
+                                                </div>
+
+                                                <p class="text-xs font-black text-slate-700 leading-tight uppercase mt-1">${s.nama_siswa}</p>
+                                            </div>
+                                        `).join('')}
+                                        ${students.length === 0 ? '<p class="col-span-4 text-center text-slate-400 italic py-10">Tidak ada data siswa</p>' : ''}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (window.adminState.modal.show) {
                 modalContainer.innerHTML = `
                     <div class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
                         <div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl text-center border-t-8 border-slate-900">
@@ -464,125 +739,155 @@
                             </div>
                         </div>
                     </div>`;
-            } else {
-                modalContainer.innerHTML = '';
-            }
+            } else { modalContainer.innerHTML = ''; }
         };
 
-        // 4. Main Render Coordinator
+        window.renderModal = window.renderStudentModal; 
+
         window.renderAdmin = () => {
             const root = document.getElementById('admin-root');
             
-            // A. Login Screen
             if (!window.adminState.isAuthenticated) {
                 root.innerHTML = `
-                <div class="min-h-screen flex items-center justify-center bg-slate-950 p-6 animate-fadeIn">
-                    <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center relative overflow-hidden">
+                <div class="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6 animate-fadeIn">
+                    <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center relative overflow-hidden mb-6">
                         <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 to-orange-500"></div>
                         <div class="w-20 h-20 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-6"><i class="fa-solid fa-shield-halved"></i></div>
-                        <h2 class="text-2xl font-black uppercase mb-1 tracking-tighter text-slate-900">Admin <span class="text-rose-600 font-extrabold">CENTRAL</span></h2>
-                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-8 text-center italic">Authority Hub for Jurnal Guru Pro</p>
+                        <h2 class="text-2xl font-black uppercase mb-1 tracking-tighter text-slate-900">PUSAT <span class="text-rose-600 font-extrabold">SIJURU</span></h2>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-8 text-center italic">Pusat Kontrol Jurnal Guru Pro</p>
                         <form onsubmit="window.handleAdminLogin(event)" class="space-y-4" autocomplete="off">
                             <input type="password" name="adminPass" placeholder="••••••" autofocus autocomplete="new-password" value="" class="w-full bg-slate-50 rounded-xl p-4 font-black text-center outline-none border-2 ${window.adminState.loginError ? 'border-rose-500 bg-rose-50' : 'border-transparent'} focus:border-rose-500 text-xl tracking-[0.5em] transition-all">
                             ${window.adminState.loginError ? `<p class="text-[10px] font-black uppercase text-rose-600 tracking-widest">${window.adminState.loginError}</p>` : ''}
-                            <button type="submit" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-black transition-all">Grant Access</button>
+                            <button type="submit" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-black transition-all">Beri Akses</button>
                         </form>
+                    </div>
+                    <div class="text-center space-y-1">
+                        <p class="text-[10px] font-bold text-slate-500">Powered by ReezApps</p>
+                        <p class="text-[10px] font-bold text-slate-500">Mohamad Rizki, S.Pd., Gr.</p>
                     </div>
                 </div>`;
                 return;
             }
 
-            // B. Render Layout Structure (ONLY ONCE)
-            if (!document.getElementById('admin-layout-shell')) {
-                root.innerHTML = `
-                <div id="admin-layout-shell" class="min-h-screen bg-slate-50 flex flex-col md:flex-row text-left animate-fadeIn">
-                    <!-- Sidebar Static -->
-                    <aside class="w-64 bg-slate-900 text-white p-6 flex flex-col shrink-0 relative overflow-hidden">
+            // Always re-render shell for sidebar state changes
+            root.innerHTML = `
+                <div id="admin-layout-shell" class="min-h-screen bg-slate-50 flex flex-col md:flex-row text-left animate-fadeIn overflow-hidden">
+                    <!-- Mobile Overlay -->
+                    <div class="fixed inset-0 bg-slate-950/80 z-40 md:hidden transition-opacity duration-300 ${window.adminState.isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}" onclick="window.toggleMobileSidebar()"></div>
+
+                    <!-- Sidebar -->
+                    <aside class="fixed md:static inset-y-0 left-0 z-50 bg-slate-900 text-white flex flex-col shrink-0 relative overflow-hidden transition-all duration-300 ${window.adminState.isDesktopSidebarCollapsed ? 'md:w-20' : 'md:w-64'} ${window.adminState.isMobileSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}">
                         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-600 to-blue-600"></div>
-                        <div class="flex items-center gap-3 mb-10 mt-4">
-                            <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg"><i class="fa-solid fa-user-shield"></i></div>
-                            <h1 class="text-lg font-black uppercase leading-tight">ADMIN<br><span class="text-rose-500 text-sm">CENTRAL</span></h1>
+                        
+                        <!-- Header -->
+                        <div class="flex items-center gap-3 mb-10 mt-6 px-6 overflow-hidden">
+                            <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"><i class="fa-solid fa-user-shield"></i></div>
+                            <h1 class="text-lg font-black uppercase leading-tight whitespace-nowrap transition-opacity duration-300 ${window.adminState.isDesktopSidebarCollapsed ? 'md:opacity-0 md:hidden' : 'opacity-100'}">PUSAT<br><span class="text-rose-500 text-sm">SIJURU</span></h1>
+                            <!-- Mobile Close -->
+                            <button class="md:hidden ml-auto text-slate-400 hover:text-white" onclick="window.toggleMobileSidebar()"><i class="fa-solid fa-xmark text-xl"></i></button>
                         </div>
                         
-                        <nav class="space-y-1">
-                            <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-2">Navigation</p>
-                            <button id="nav-accounts" onclick="window.setView('accounts')" class="w-full flex items-center gap-3 p-4 rounded-xl bg-white/10 text-white shadow-inner transition-all text-left">
-                                <i class="fa-solid fa-users-gear text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Akun Guru</span>
+                        <nav class="space-y-1 px-4">
+                            <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-2 whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Navigasi</p>
+                            
+                            <button id="nav-accounts" onclick="window.setView('accounts')" class="w-full flex items-center gap-3 p-4 rounded-xl transition-all text-left group ${window.adminState.currentView === 'accounts' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'}">
+                                <div class="w-5 flex justify-center"><i class="fa-solid fa-users-gear text-xs"></i></div>
+                                <span class="text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Akun Guru</span>
+                                <!-- Tooltip for collapsed -->
+                                ${window.adminState.isDesktopSidebarCollapsed ? `<div class="hidden md:group-hover:block absolute left-full ml-2 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-50">Akun Guru</div>` : ''}
                             </button>
-                            <button id="nav-guide" onclick="window.setView('guide')" class="w-full flex items-center gap-3 p-4 rounded-xl text-slate-400 hover:bg-white/5 transition-all text-left">
-                                <i class="fa-solid fa-book-open text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Panduan</span>
+
+                            <button id="nav-data" onclick="window.setView('data')" class="w-full flex items-center gap-3 p-4 rounded-xl transition-all text-left group ${window.adminState.currentView === 'data' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'}">
+                                <div class="w-5 flex justify-center"><i class="fa-solid fa-database text-xs"></i></div>
+                                <span class="text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Manajemen Data</span>
+                                ${window.adminState.isDesktopSidebarCollapsed ? `<div class="hidden md:group-hover:block absolute left-full ml-2 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-50">Data</div>` : ''}
                             </button>
+
+                            <button id="nav-guide" onclick="window.setView('guide')" class="w-full flex items-center gap-3 p-4 rounded-xl transition-all text-left group ${window.adminState.currentView === 'guide' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'}">
+                                <div class="w-5 flex justify-center"><i class="fa-solid fa-book-open text-xs"></i></div>
+                                <span class="text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Panduan</span>
+                                ${window.adminState.isDesktopSidebarCollapsed ? `<div class="hidden md:group-hover:block absolute left-full ml-2 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-50">Panduan</div>` : ''}
+                            </button>
+                            
                             <div class="pt-4 mt-4 border-t border-white/5">
-                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-2">Otoritas Master</p>
-                                <button onclick="window.openTeacherWeb()" class="w-full flex items-center gap-3 p-4 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600 hover:text-white transition-all text-left mb-2">
-                                    <i class="fa-solid fa-globe text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Sistem Client</span>
+                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-2 whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Otoritas Utama</p>
+                                
+                                <button onclick="window.openTeacherWeb()" class="w-full flex items-center gap-3 p-4 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600 hover:text-white transition-all text-left mb-2 group">
+                                    <div class="w-5 flex justify-center"><i class="fa-solid fa-globe text-xs"></i></div>
+                                    <span class="text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Sistem Klien</span>
                                 </button>
-                                <button onclick="window.changeAdminPin()" class="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-white/5 text-slate-400 hover:text-white transition-all text-left">
-                                    <i class="fa-solid fa-key text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Ubah PIN Admin</span>
+                                
+                                <button onclick="window.changeAdminPin()" class="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-white/5 text-slate-400 hover:text-white transition-all text-left group">
+                                    <div class="w-5 flex justify-center"><i class="fa-solid fa-key text-xs"></i></div>
+                                    <span class="text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Ubah PIN</span>
                                 </button>
-                                <button onclick="window.logoutAdmin()" class="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-rose-500/20 text-rose-400 transition-all text-left">
-                                    <i class="fa-solid fa-power-off text-xs"></i> <span class="text-[9px] font-black uppercase tracking-widest text-left">Log Out Admin</span>
+                                
+                                <button onclick="window.logoutAdmin()" class="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-rose-500/20 text-rose-400 transition-all text-left group">
+                                    <div class="w-5 flex justify-center"><i class="fa-solid fa-power-off text-xs"></i></div>
+                                    <span class="text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${window.adminState.isDesktopSidebarCollapsed ? 'md:hidden' : ''}">Keluar</span>
                                 </button>
                             </div>
                         </nav>
 
-                        <div class="mt-auto pt-6 border-t border-white/5">
+                        <!-- Collapse Toggle (Desktop) -->
+                        <button onclick="window.toggleDesktopSidebar()" class="hidden md:flex absolute bottom-6 right-0 w-6 h-10 bg-slate-800 rounded-l-lg items-center justify-center text-slate-400 hover:text-white hover:bg-blue-600 transition-all z-20 shadow-lg">
+                            <i class="fa-solid fa-chevron-${window.adminState.isDesktopSidebarCollapsed ? 'right' : 'left'} text-xs"></i>
+                        </button>
+
+                        <div class="mt-auto pt-6 border-t border-white/5 p-4 ${window.adminState.isDesktopSidebarCollapsed ? 'hidden' : ''}">
                              <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
-                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 text-left">Cloud Activity</p>
-                                <div id="log-container" class="space-y-3 overflow-y-auto max-h-40 custom-scroll pr-2">
-                                    <!-- Logs Rendered Here -->
-                                </div>
+                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2 text-left">Aktivitas Sistem</p>
+                                <div id="log-container" class="space-y-3 overflow-y-auto max-h-40 custom-scroll pr-2"></div>
                             </div>
                         </div>
                     </aside>
 
-                    <main class="flex-grow flex flex-col h-screen overflow-hidden text-left relative">
-                        <!-- Static Header -->
-                        <header class="bg-white/80 backdrop-blur-md px-8 py-6 border-b flex justify-between items-center shrink-0 z-10">
-                            <div>
-                                <h2 id="header-title" class="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none mb-1">
-                                    Management Akun
-                                </h2>
-                                <p class="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Otoritas Master • Jurnal Guru Pro</p>
+                    <main class="flex-grow flex flex-col h-screen overflow-hidden text-left relative w-full">
+                        <header class="bg-white/80 backdrop-blur-md px-6 md:px-8 py-6 border-b flex justify-between items-center shrink-0 z-10">
+                            <div class="flex items-center gap-4">
+                                <button onclick="window.toggleMobileSidebar()" class="md:hidden w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-600 shadow-sm"><i class="fa-solid fa-bars"></i></button>
+                                <div>
+                                    <h2 id="header-title" class="text-xl md:text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none mb-1">
+                                        Manajemen Akun
+                                    </h2>
+                                    <p class="text-[8px] md:text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Otoritas Utama • Jurnal Guru Pro</p>
+                                </div>
                             </div>
                             <div class="flex items-center gap-4">
                                 <div class="hidden md:flex bg-slate-50 px-4 py-2 rounded-2xl border flex items-center gap-3">
                                     <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-600">${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
                                 </div>
-                                <button onclick="window.calculateGlobalStats()" class="w-11 h-11 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-black transition-all shadow-lg active:scale-95">
+                                <button onclick="window.calculateGlobalStats()" class="w-10 h-10 md:w-11 md:h-11 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-black transition-all shadow-lg active:scale-95">
                                     <i id="refresh-icon" class="fa-solid fa-rotate-right"></i>
                                 </button>
                             </div>
                         </header>
 
-                        <!-- Dynamic Content Container -->
-                        <div id="main-content-area" class="flex-grow overflow-y-auto custom-scroll p-8">
+                        <div id="main-content-area" class="flex-grow overflow-y-auto custom-scroll p-6 md:p-8">
                             <!-- Content Injected Here -->
                         </div>
 
-                        <!-- Static Footer -->
-                        <footer class="mt-auto py-4 border-t border-slate-100 flex justify-between items-center px-8 shrink-0 bg-white shadow-inner">
+                        <footer class="mt-auto py-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 md:gap-0 justify-between items-center px-8 shrink-0 bg-white shadow-inner">
                             <div class="flex gap-4">
                                 <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="text-slate-300 hover:text-rose-500 transition-all"><i class="fa-brands fa-instagram text-sm"></i></a>
                                 <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="text-slate-300 hover:text-slate-800 transition-all"><i class="fa-brands fa-tiktok text-sm"></i></a>
                                 <a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="text-slate-300 hover:text-rose-600 transition-all"><i class="fa-brands fa-youtube text-sm"></i></a>
                             </div>
-                            <div class="text-right">
+                            <div class="text-center md:text-right">
                                 <p class="text-[8px] font-black text-slate-400 uppercase tracking-tighter leading-none">MOHAMAD RIZKI, S.PD.,GR.</p>
-                                <p class="text-[6px] font-bold text-blue-400 uppercase tracking-widest leading-none mt-1">Innovative Educator & Fullstack Architect</p>
+                                <p class="text-[6px] font-bold text-blue-400 uppercase tracking-widest leading-none mt-1">Pendidik Inovatif & Arsitek Fullstack</p>
                             </div>
                         </footer>
                     </main>
 
                     <div id="modal-container"></div>
                 </div>`;
-            }
-
-            // C. Populate Initial Content
+            
+            // Re-populate content after shell render
             window.renderContent();
             window.renderLogs();
-            window.renderModal();
+            window.renderStudentModal();
         };
 
         const startAdmin = async () => { try { await signInAnonymously(auth); await window.initAdminData(); window.renderAdmin(); } catch (e) { console.error(e); } };
