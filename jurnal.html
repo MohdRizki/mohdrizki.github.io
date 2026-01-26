@@ -453,7 +453,7 @@
                 
                 const config = { 
                     fps: 10, 
-                    qrbox: { width: 220, height: 220 }, // Area deteksi disesuaikan dengan frame baru
+                    qrbox: { width: 220, height: 220 }, // Area deteksi proporsional
                     aspectRatio: 1.0,
                     showTorchButtonIfSupported: true
                 };
@@ -464,13 +464,13 @@
                     { facingMode: window.appState.cameraFacingMode }, 
                     config, 
                     async (text) => {
-                        // Logika Anti-Spam: Cek Lock
+                        // Logika Anti-Spam
                         if (window.appState.scannerLock) return;
 
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         
                         if (student) {
-                            window.appState.scannerLock = true; // Kunci segera setelah terdeteksi
+                            window.appState.scannerLock = true; // Kunci sementara
                             
                             if (navigator.vibrate) navigator.vibrate(200);
                             
@@ -481,29 +481,29 @@
                             );
 
                             if (!isAlreadyPresent) {
-                                // CASE: Belum Hadir -> Proses Absen
+                                // 1. Simpan Kehadiran
                                 await window.markAttendance(student.id, 'Hadir');
                                 
-                                // Tampilkan Popup Sukses
+                                // 2. Tampilkan Notifikasi Sukses
                                 window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
                                 window.renderApp();
 
-                                // Jeda scanner lebih lama saat sukses agar popup terbaca & tidak scan ulang instan
+                                // 3. Logika "Muat Ulang" Scanner (Jeda & Unlock)
+                                // Jeda 3 detik agar notif terbaca, lalu reset scanner untuk siswa selanjutnya
                                 setTimeout(() => {
                                     window.appState.scanSuccessPopup.show = false;
-                                    window.appState.scannerLock = false; // Buka kunci setelah popup hilang
+                                    window.appState.scannerLock = false; // Membuka kunci = siap scan lagi
                                     window.renderApp();
                                 }, 3000); 
                             } else {
-                                // CASE: Sudah Hadir -> Beri Peringatan & Jeda
+                                // Jika sudah hadir
                                 window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
-                                // Jeda 3 detik sebelum boleh scan lagi untuk mencegah spam notifikasi
                                 setTimeout(() => { 
                                     window.appState.scannerLock = false; 
                                 }, 3000);
                             }
                         } else {
-                            // QR Tidak Dikenal
+                            // QR tidak valid
                             if (!window.appState.scannerLock) {
                                 window.appState.scannerLock = true;
                                 window.showNotif("QR Code tidak terdaftar.", "error");
@@ -511,9 +511,7 @@
                             }
                         }
                     },
-                    (errorMessage) => {
-                        // Error parsing frame diabaikan
-                    }
+                    (errorMessage) => { /* abaikan error frame kosong */ }
                 );
             } catch (err) { 
                 console.error("Camera Error:", err);
@@ -1185,11 +1183,21 @@
                         </div>
                         
                         <!-- Wrapper Kamera: Ukuran Fixed & Proporsional -->
-                        <div class="relative w-64 h-64 md:w-72 md:h-72 rounded-[2rem] overflow-hidden border-8 border-slate-100 shadow-inner bg-slate-900 mx-auto mb-6 shrink-0">
+                        <div class="relative w-64 h-64 md:w-72 md:h-72 rounded-[2rem] overflow-hidden border-8 border-slate-100 shadow-inner bg-slate-900 mx-auto mb-6 shrink-0 relative">
                             
                             <!-- Elemen Kamera -->
                             <div id="reader" class="w-full h-full bg-slate-900 ${window.appState.cameraFacingMode === 'user' ? 'mirror-mode' : ''}"></div>
                             
+                            <!-- Visual 4 Siku (Overlay) -->
+                            <div class="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+                                <div class="w-48 h-48 md:w-56 md:h-56 relative opacity-70">
+                                    <div class="absolute top-0 left-0 w-8 h-8 border-l-4 border-t-4 border-white rounded-tl-xl"></div>
+                                    <div class="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-white rounded-tr-xl"></div>
+                                    <div class="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-white rounded-bl-xl"></div>
+                                    <div class="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-white rounded-br-xl"></div>
+                                </div>
+                            </div>
+
                             <!-- Overlay Popup: Ukuran Pas dengan Parent (inset-0) -->
                             ${window.appState.scanSuccessPopup.show ? `
                             <div class="absolute inset-0 bg-emerald-500/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn p-4 text-center">
@@ -1197,7 +1205,7 @@
                                     <i class="fa-solid fa-check text-2xl text-emerald-500"></i>
                                 </div>
                                 <h2 class="text-lg font-black text-white uppercase tracking-tighter leading-tight mb-1 line-clamp-2">${window.appState.scanSuccessPopup.studentName}</h2>
-                                <span class="bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold text-white uppercase tracking-widest">Berhasil Hadir</span>
+                                <span class="bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold text-white uppercase tracking-widest">BERHASIL HADIR!</span>
                             </div>` : ''}
                         </div>
 
