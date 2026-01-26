@@ -498,10 +498,9 @@
                             );
 
                             if (isPresent) {
-                                // ANTI-SPAM CERDAS: Jika baru saja scan dalam 30 detik terakhir, abaikan total (Silent)
+                                // ANTI-SPAM CERDAS: Abaikan jika scan ulang dalam 30 detik
                                 if (now - lastTime < 30000) return;
                                 
-                                // Jika sudah > 30 detik, baru tampilkan notif "Sudah Masuk" lagi
                                 window.appState.lastScans[student.id] = now;
                                 window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
                                 return;
@@ -512,24 +511,21 @@
                             window.appState.scannerLock = true;
                             window.appState.lastScans[student.id] = now;
 
-                            // 1. Pause Kamera (Freeze Frame)
-                            try { window.appState.html5QrCode.pause(true); } catch(e) {}
+                            // PERBAIKAN: KAMERA TIDAK DI-PAUSE (KONTINYU)
+                            // Kamera tetap jalan di background agar tidak perlu restart berat
 
-                            // 2. Simpan Data
+                            // 1. Simpan Data
                             await window.markAttendance(student.id, 'Hadir');
                             
-                            // 3. Tampilkan Overlay (TANPA NOTIF TEXT LAIN)
+                            // 2. Tampilkan Overlay
                             window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
                             window.renderApp();
 
-                            // 4. Auto Reset setelah 2.5 detik
+                            // 3. Auto Reset setelah 2.5 detik (Tanpa reload kamera)
                             setTimeout(() => {
                                 window.appState.scanSuccessPopup.show = false;
-                                window.renderApp();
-                                
-                                // Resume Kamera
-                                try { window.appState.html5QrCode.resume(); } catch(e) {}
-                                window.appState.scannerLock = false; 
+                                window.renderApp(); // Hilangkan popup
+                                window.appState.scannerLock = false; // Siap scan siswa berikutnya
                             }, 2500); 
 
                         } else {
