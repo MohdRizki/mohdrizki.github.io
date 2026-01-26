@@ -181,20 +181,10 @@
                 snapshot.forEach(doc => { if (doc.data().pin?.toString() === pinValue) foundTeacherId = doc.id; });
                 
                 if (foundTeacherId) {
-                    const loginCard = document.querySelector('.bg-white.p-8');
-                    if(loginCard) {
-                        loginCard.style.transition = "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)";
-                        loginCard.style.transform = "scale(0.9) translateY(20px)";
-                        loginCard.style.opacity = "0";
-                    }
-
-                    // Notif login dihapus agar transisi lebih cepat terasa
-                    setTimeout(() => {
-                        window.appState.teacherId = foundTeacherId;
-                        window.appState.isAuthenticated = true;
-                        window.initDataListeners();
-                        window.setView('dashboard');
-                    }, 500);
+                    window.appState.teacherId = foundTeacherId;
+                    window.appState.isAuthenticated = true;
+                    window.initDataListeners();
+                    window.setView('dashboard');
                 } else { 
                     window.showNotif("Kode PIN Tidak Terdaftar!", "error"); 
                     window.appState.isLoggingIn = false;
@@ -508,10 +498,10 @@
                             );
 
                             if (isPresent) {
-                                // SPAM FILTER: Jika baru saja scan dalam 5 menit terakhir, abaikan total (Silent)
-                                if (now - lastTime < 300000) return;
+                                // ANTI-SPAM CERDAS: Jika baru saja scan dalam 30 detik terakhir, abaikan total (Silent)
+                                if (now - lastTime < 30000) return;
                                 
-                                // Jika sudah > 5 menit, baru tampilkan notif "Sudah Masuk" lagi
+                                // Jika sudah > 30 detik, baru tampilkan notif "Sudah Masuk" lagi
                                 window.appState.lastScans[student.id] = now;
                                 window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
                                 return;
@@ -922,7 +912,7 @@
                         <div class="md:col-span-2 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 p-8 md:p-10 rounded-[2.5rem] text-white shadow-xl flex flex-col justify-center relative overflow-hidden group">
                             <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-all duration-700"></div>
                             <div class="relative z-10">
-                                <span class="bg-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md mb-4 inline-block">Sistem Administrasi Pro</span>
+                                <span class="bg-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md mb-4 inline-block">APLIKASI JURNAL GURU</span>
                                 <h1 class="text-2xl md:text-4xl font-black mb-2 tracking-tighter leading-tight">Selamat datang,<br><span class="text-blue-200">${window.appState.settings.nama_guru || 'Rekan Guru'}</span></h1>
                                 <p class="opacity-80 text-[10px] font-bold uppercase tracking-widest mb-8">Semester ${curSem} • ${window.appState.settings.nama_sekolah || 'Digitalisasi Sekolah'}</p>
                                 <div class="flex flex-wrap gap-3">
