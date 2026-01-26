@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Jurnal Guru - Digitalisasi Administrasi</title>
+    <title>SIJURU - Aplikasi Jurnal Guru</title>
     
     <!-- CSS & Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -94,12 +94,14 @@
             lastFocusedId: null,
             lastCaretPos: 0,
             mobileMenuOpen: false,
-            sidebarCollapsed: false, // State for Sidebar Collapse
+            sidebarCollapsed: false, 
+            populationExpanded: false,
             scannerActive: false,
             html5QrCode: null,
             cameraFacingMode: "environment", // Default camera (back)
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
+            editModal: { show: false, id: null, name: '' }, // NEW: Edit Modal State
             scannerLock: false,
             scanSuccessPopup: { show: false, studentName: '' } 
         };
@@ -197,7 +199,12 @@
 
         window.toggleSemester = async () => {
             const newSem = window.appState.settings.semester === '1' ? '2' : '1';
-            await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), { ...window.appState.settings, semester: newSem });
+            await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), 
+                { semester: newSem }, 
+                { merge: true }
+            );
+            window.appState.settings.semester = newSem;
+            window.renderApp();
             window.showNotif(`Semester diubah ke ${newSem}`);
         };
 
@@ -236,6 +243,33 @@
             input.value = '';
             window.showNotif("TP Berhasil Ditambahkan");
             window.renderApp();
+        };
+
+        // UPDATE: Fitur Edit Nama Siswa (Menggunakan Custom Modal, bukan Prompt)
+        window.handleEditStudent = (id) => {
+            const student = window.appState.students.find(s => s.id === id);
+            if (!student) return;
+            
+            window.appState.editModal = { show: true, id, name: student.nama_siswa };
+            window.renderApp();
+            setTimeout(() => {
+                const inp = document.getElementById('edit-student-input');
+                if(inp) { inp.focus(); inp.select(); }
+            }, 50);
+        };
+
+        window.saveStudentName = async () => {
+            const { id } = window.appState.editModal;
+            const newName = document.getElementById('edit-student-input').value;
+            
+            if (newName && newName.trim() !== "") {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'students', id), {
+                    nama_siswa: newName.trim()
+                });
+                window.showNotif("Nama berhasil diubah");
+                window.appState.editModal.show = false;
+                window.renderApp();
+            }
         };
 
         window.handleResetAttendance = async () => {
@@ -371,7 +405,7 @@
                     container.innerHTML = ""; 
                     new QRCode(container, { text: student.nama_siswa, width: 256, height: 256, colorDark : "#1e293b", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
                 }
-            }, 300);
+            }, 10); // INSTANT QR
         };
 
         window.downloadQR = (name) => {
@@ -735,7 +769,7 @@
             const root = document.getElementById('root');
             if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse text-center">Menghubungkan...</div>`; return; }
             if (!window.appState.isAuthenticated) {
-                root.innerHTML = `<div class="min-h-screen flex items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">Guru</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">MASUKKAN KODE AKSES ANDA!</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> Buka Sistem</button></form></div></div>`;
+                root.innerHTML = `<div class="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden mb-6"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">SIJURU</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">MASUKKAN KODE AKSES ANDA!</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> Buka Sistem</button></form></div><div class="text-center opacity-60"><p class="text-[10px] font-bold text-slate-400 mb-1">Powered by ReezApps</p><p class="text-[10px] font-bold text-slate-400">Mohamad Rizki, S.Pd., Gr.</p></div></div>`;
                 lucide.createIcons(); return;
             }
 
@@ -745,7 +779,7 @@
 
             root.innerHTML = `
                 <div class="h-screen h-[100dvh] bg-slate-50 flex flex-col md:flex-row overflow-hidden text-left">
-                    <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter text-left">Jurnal<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none text-center"><i class="fa-solid fa-bars text-center"></i></button></header>
+                    <header class="md:hidden bg-white px-6 py-4 flex justify-between items-center border-b shrink-0 z-[100] text-left"><h1 class="text-sm font-black uppercase tracking-tighter text-left">SIJURU<span class="text-blue-600">Guru</span></h1><button onclick="window.appState.mobileMenuOpen = !window.appState.mobileMenuOpen; window.renderApp();" class="text-slate-600 outline-none text-center"><i class="fa-solid fa-bars text-center"></i></button></header>
                     <aside class="${window.appState.mobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col bg-white border-r transition-all duration-300 w-full ${collapsed ? 'md:w-24' : 'md:w-64'} md:relative absolute inset-y-0 left-0 z-[150] h-full shadow-2xl md:shadow-none">
                         
                         <!-- Toggle Button -->
@@ -754,8 +788,8 @@
                         </button>
 
                         <div class="flex items-center gap-4 px-6 py-8 relative shrink-0 text-left overflow-hidden">
-                            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0 text-center"><i class="fa-solid fa-graduation-cap text-center"></i></div>
-                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 w-0 translate-x-10 absolute' : 'opacity-100 w-auto relative'} text-left">Jurnal<br><span class="text-blue-600 text-sm">GURU</span></h1>
+                            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0 text-center"><i class="fa-solid fa-book text-center"></i></div>
+                            <h1 class="font-black uppercase tracking-tighter leading-none transition-all duration-300 ${collapsed ? 'opacity-0 w-0 translate-x-10 absolute' : 'opacity-100 w-auto relative'} text-left">SIJURU<br><span class="text-blue-600 text-sm">Jurnal Guru</span></h1>
                         </div>
                         <nav class="flex-grow px-4 space-y-1 overflow-y-auto custom-scroll pb-10 text-left">
                             ${window.renderNavItem('dashboard', 'fa-house', 'Beranda')}
@@ -786,7 +820,8 @@
                         </div>
                     </main>
 
-                    ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2 text-center">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8 text-center">${window.appState.modal.message}</p><div class="flex gap-3 text-center"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
+                    ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2 text-center">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8 text-center whitespace-pre-line">${window.appState.modal.message}</p><div class="flex gap-3 text-center"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
+                    ${window.appState.editModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-blue-600 mb-2 text-center">Edit Siswa</h3><input type="text" id="edit-student-input" value="${window.appState.editModal.name}" class="w-full bg-slate-50 rounded-xl p-4 font-black text-center mb-6 border-none outline-none text-slate-800" onkeydown="if(event.key === 'Enter') window.saveStudentName()"><div class="flex gap-3 text-center"><button onclick="window.appState.editModal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.saveStudentName()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Simpan</button></div></div></div>` : ''}
                     ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-8 md:p-10 max-w-[320px] w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6 text-center text-slate-800">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 flex justify-center items-center mb-8 mx-auto w-[200px] h-[200px] md:w-[256px] md:h-[256px] text-center overflow-hidden"></div><div class="flex flex-col gap-2 text-center"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-center transition-all hover:bg-blue-700 shadow-lg"><i class="fa-solid fa-download mr-2"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 text-slate-500 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center hover:bg-slate-200 transition-all">Tutup</button></div></div></div>` : ''}
                 </div>`;
             lucide.createIcons(); if (view === 'dashboard') window.initChart();
@@ -808,9 +843,8 @@
                 const todayDayName = todayDate.toLocaleDateString('id-ID', { weekday: 'long' });
                 const todayDateStr = todayDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
-                // Active Student Calculation
-                const activeClass = window.appState.selectedKelas || (window.appState.settings.kelas_diampu && window.appState.settings.kelas_diampu.length > 0 ? window.appState.settings.kelas_diampu[0] : '1');
-                const studentCount = window.appState.students.filter(s => String(s.kelas) === String(activeClass)).length;
+                // Active Student Calculation (Total Siswa Terdaftar)
+                const studentCount = window.appState.students.length;
 
                 // Calendar Logic
                 const currentMonth = new Date();
@@ -832,6 +866,12 @@
                 }
                 
                 const todayHolDesc = window.getHolidayDescription(today);
+
+                // Population Details HTML Generation
+                const counts = {};
+                window.appState.students.forEach(s => { counts[s.kelas] = (counts[s.kelas] || 0) + 1; });
+                const detailHTML = Object.keys(counts).sort((a,b)=>a-b).map(k => `<div class="flex justify-between text-xs text-white/90 border-b border-white/10 py-1 last:border-0"><span>Kelas ${k}</span><span class="font-bold">${counts[k]}</span></div>`).join('');
+
 
                 return `
                 <div class="space-y-6 animate-fadeIn text-left">
@@ -900,9 +940,27 @@
                             </div>
                         </div>
 
-                        <!-- Menu Cepat -->
+                        <!-- Menu Cepat & Populasi -->
                         <div class="space-y-3">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Aksi Cepat</h4>
+                            
+                            <!-- Kartu Populasi Baru (Collapsible) -->
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-lg transition-all overflow-hidden group">
+                                <button onclick="window.appState.populationExpanded = !window.appState.populationExpanded; window.renderApp();" class="w-full p-4 flex items-center justify-between text-left outline-none cursor-pointer">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center text-base backdrop-blur-sm">
+                                            <i class="fa-solid fa-users"></i>
+                                        </div>
+                                        <div>
+                                            <span class="block text-white text-[10px] font-black uppercase tracking-widest opacity-80">Populasi Total</span>
+                                            <span class="block text-white text-xl font-black">${studentCount} Siswa</span>
+                                        </div>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-${window.appState.populationExpanded ? 'up' : 'down'} text-white/50 text-xs transition-transform duration-300"></i>
+                                </button>
+                                ${window.appState.populationExpanded ? `<div class="bg-black/10 p-4 pt-0 space-y-1 animate-fadeIn">${detailHTML || '<p class="text-[10px] text-white/60 italic">Belum ada data siswa</p>'}</div>` : ''}
+                            </div>
+
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mt-4">Aksi Cepat</h4>
                             <div class="grid grid-cols-1 gap-2">
                                 ${[
                                     { icon: 'fa-file-invoice', label: 'Cetak Laporan', view: 'reports', color: 'blue' },
@@ -967,7 +1025,7 @@
                 </div>`;
             }
 
-            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm h-fit text-left"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-rotate mr-2"></i> Sinkron Database</button></form></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left"><div class="flex justify-between items-center mb-6 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center"><i class="fa-solid fa-file-zipper mr-2"></i> ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1 text-center"><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode text-center"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div></div>`).join('')}</div></div></div>`;
+            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm h-fit text-left"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-rotate mr-2"></i> Sinkron Database</button></form></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left"><div class="flex justify-between items-center mb-6 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center"><i class="fa-solid fa-file-zipper mr-2"></i> ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1 text-center"><button onclick="window.handleEditStudent('${s.id}')" class="text-slate-400 hover:text-blue-500 p-2 rounded-lg transition-colors"><i class="fa-solid fa-pen-to-square"></i></button><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode text-center"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div></div>`).join('')}</div></div></div>`;
             
             if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel Baru</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Mapel & TP</button></form></div>
                 <div class="space-y-4 pb-10 text-left text-left">
@@ -1141,8 +1199,8 @@
             if (v === 'info') return `<div class="max-w-3xl mx-auto animate-fadeIn h-full overflow-y-auto custom-scroll pr-1 pb-16 text-left">
                 <div class="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-8 md:p-10 border shadow-sm space-y-12 text-left">
                     <div class="text-center text-center text-center">
-                        <div class="w-20 h-20 bg-blue-600 text-white rounded-[2.5rem] flex items-center justify-center text-3xl mx-auto mb-6 shadow-xl animate-bounce text-center"><i class="fa-solid fa-graduation-cap text-center"></i></div>
-                        <h4 class="font-black text-2xl md:text-3xl uppercase tracking-tighter mb-2 text-slate-800 leading-none text-center">Jurnal Guru <span class="text-blue-600 text-4xl text-center">PRO</span></h4>
+                        <div class="w-20 h-20 bg-blue-600 text-white rounded-[2.5rem] flex items-center justify-center text-3xl mx-auto mb-6 shadow-xl animate-bounce text-center"><i class="fa-solid fa-book text-center"></i></div>
+                        <h4 class="font-black text-2xl md:text-3xl uppercase tracking-tighter mb-2 text-slate-800 leading-none text-center">SIJURU <span class="text-blue-600 text-4xl text-center">App</span></h4>
                         <p class="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em] text-center text-center">Otomasi & Digitalisasi Administrasi Kelas</p>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 text-left text-left">
@@ -1174,7 +1232,7 @@
                             <a href="https://youtube.com/@mohdrizkkyy" target="_blank" class="w-14 h-14 md:w-16 md:h-16 bg-rose-100 text-rose-600 rounded-[1.5rem] flex items-center justify-center text-2xl md:text-3xl hover:bg-rose-600 hover:text-white transition-all shadow-md text-center text-center"><i class="fa-brands fa-youtube text-center"></i></a>
                         </div>
                         <div class="text-center bg-slate-50 py-6 px-10 md:px-12 rounded-[2rem] border text-center text-center">
-                            <h5 class="text-sm md:text-base font-black text-slate-800 uppercase tracking-tighter text-center">Mohamad Rizki, S.Pd.,Gr.</h5>
+                            <h5 class="text-sm md:text-base font-black text-slate-800 font-bold text-center">Mohamad Rizki, S.Pd., Gr.</h5>
                             <p class="text-[9px] font-black text-blue-600 uppercase mt-2 tracking-widest text-center">Innovative Educator & Fullstack System Architect</p>
                         </div>
                     </div>
