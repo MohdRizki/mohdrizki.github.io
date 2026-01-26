@@ -452,31 +452,28 @@
                 window.appState.html5QrCode = new window.Html5Qrcode("reader");
                 
                 const config = { 
-                    fps: 10, // FPS stabil untuk kompatibilitas perangkat rendah
-                    qrbox: { width: 250, height: 250 }, // Area scan fix agar fokus
+                    fps: 10, 
+                    qrbox: { width: 220, height: 220 }, // Area deteksi disesuaikan dengan frame baru
                     aspectRatio: 1.0,
                     showTorchButtonIfSupported: true
                 };
                 
                 window.appState.scannerActive = true; 
 
-                // Start Camera tanpa constraints video yang rumit untuk kompatibilitas maksimal
                 await window.appState.html5QrCode.start(
                     { facingMode: window.appState.cameraFacingMode }, 
                     config, 
                     async (text) => {
-                        // Callback Sukses Scan
+                        // Logika Anti-Spam: Cek Lock
                         if (window.appState.scannerLock) return;
 
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         
                         if (student) {
-                            window.appState.scannerLock = true; // Kunci scanner agar tidak double scan
+                            window.appState.scannerLock = true; // Kunci segera setelah terdeteksi
                             
-                            // Efek getar jika didukung
                             if (navigator.vibrate) navigator.vibrate(200);
                             
-                            // Cek apakah sudah absen hari ini
                             const isAlreadyPresent = window.appState.attendance.some(a => 
                                 a.studentId === student.id && 
                                 a.date === window.appState.selectedDate && 
@@ -484,31 +481,38 @@
                             );
 
                             if (!isAlreadyPresent) {
-                                // 1. Simpan Data
+                                // CASE: Belum Hadir -> Proses Absen
                                 await window.markAttendance(student.id, 'Hadir');
                                 
-                                // 2. Tampilkan Popup Sukses
+                                // Tampilkan Popup Sukses
                                 window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
                                 window.renderApp();
 
-                                // 3. Delay & Reset Tanpa Mematikan Kamera (Seamless Experience)
+                                // Jeda scanner lebih lama saat sukses agar popup terbaca & tidak scan ulang instan
                                 setTimeout(() => {
                                     window.appState.scanSuccessPopup.show = false;
-                                    window.appState.scannerLock = false;
+                                    window.appState.scannerLock = false; // Buka kunci setelah popup hilang
                                     window.renderApp();
-                                }, 2500); // Tampil selama 2.5 detik
+                                }, 3000); 
                             } else {
-                                window.showNotif(`${student.nama_siswa} sudah presensi hari ini`, "warning");
-                                setTimeout(() => { window.appState.scannerLock = false; }, 2000);
+                                // CASE: Sudah Hadir -> Beri Peringatan & Jeda
+                                window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
+                                // Jeda 3 detik sebelum boleh scan lagi untuk mencegah spam notifikasi
+                                setTimeout(() => { 
+                                    window.appState.scannerLock = false; 
+                                }, 3000);
                             }
                         } else {
-                            // QR tidak dikenal, beri notif kecil tanpa mengunci lama
-                            window.showNotif("QR Code tidak terdaftar di database", "error");
-                            // Tidak perlu lock true, biarkan scan ulang
+                            // QR Tidak Dikenal
+                            if (!window.appState.scannerLock) {
+                                window.appState.scannerLock = true;
+                                window.showNotif("QR Code tidak terdaftar.", "error");
+                                setTimeout(() => { window.appState.scannerLock = false; }, 2000);
+                            }
                         }
                     },
                     (errorMessage) => {
-                        // Error parsing frame, abaikan agar tidak spam log
+                        // Error parsing frame diabaikan
                     }
                 );
             } catch (err) { 
@@ -1170,31 +1174,43 @@
                 <div class="bg-rose-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-rose-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center"><i class="fa-solid fa-stairs mr-2"></i> Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center transition-all hover:bg-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Bersihkan Database</button></div></div></div>`;
             
             if (v === 'scanner') return `
-                <div class="max-w-md mx-auto animate-fadeIn relative h-full flex items-center justify-center">
-                    <div class="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 border shadow-sm text-center flex flex-col items-center w-full relative overflow-hidden text-center">
-                        <div class="w-full flex justify-end mb-2">
-                            <button onclick="window.switchCamera()" class="bg-white/80 backdrop-blur text-slate-600 w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:bg-white transition-all"><i class="fa-solid fa-camera-rotate"></i></button>
+                <div class="max-w-md mx-auto animate-fadeIn relative h-full flex flex-col items-center justify-center p-4">
+                    <div class="bg-white rounded-[2.5rem] p-6 border shadow-sm text-center flex flex-col items-center w-full max-w-sm relative">
+                        
+                        <!-- Tombol Switch Camera -->
+                        <div class="w-full flex justify-end mb-4">
+                            <button onclick="window.switchCamera()" class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-200 transition-all">
+                                <i class="fa-solid fa-camera-rotate"></i>
+                            </button>
                         </div>
                         
-                        <!-- Wrapper kamera & overlay -->
-                        <div class="relative w-full aspect-square mb-8 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-8 border-slate-50 shadow-2xl shrink-0 bg-slate-100">
-                            <!-- Kondisi mirror-mode hanya jika kamera depan (user) -->
+                        <!-- Wrapper Kamera: Ukuran Fixed & Proporsional -->
+                        <div class="relative w-64 h-64 md:w-72 md:h-72 rounded-[2rem] overflow-hidden border-8 border-slate-100 shadow-inner bg-slate-900 mx-auto mb-6 shrink-0">
+                            
+                            <!-- Elemen Kamera -->
                             <div id="reader" class="w-full h-full bg-slate-900 ${window.appState.cameraFacingMode === 'user' ? 'mirror-mode' : ''}"></div>
                             
+                            <!-- Overlay Popup: Ukuran Pas dengan Parent (inset-0) -->
                             ${window.appState.scanSuccessPopup.show ? `
-                            <div class="absolute inset-0 bg-emerald-500/95 backdrop-blur-md flex flex-col items-center justify-center z-[999] animate-fadeIn p-6 text-center">
-                                <div class="bg-white p-5 rounded-full mb-6 shadow-2xl animate-bounce">
-                                    <i class="fa-solid fa-check text-5xl text-emerald-500"></i>
+                            <div class="absolute inset-0 bg-emerald-500/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fadeIn p-4 text-center">
+                                <div class="bg-white w-14 h-14 rounded-full flex items-center justify-center mb-3 shadow-lg animate-bounce">
+                                    <i class="fa-solid fa-check text-2xl text-emerald-500"></i>
                                 </div>
-                                <h2 class="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter mb-2 leading-tight">${window.appState.scanSuccessPopup.studentName}</h2>
-                                <div class="bg-white/20 px-4 py-2 rounded-xl mt-2">
-                                    <p class="text-white font-bold uppercase tracking-[0.2em] text-[10px]">Berhasil Presensi</p>
-                                </div>
+                                <h2 class="text-lg font-black text-white uppercase tracking-tighter leading-tight mb-1 line-clamp-2">${window.appState.scanSuccessPopup.studentName}</h2>
+                                <span class="bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold text-white uppercase tracking-widest">Berhasil Hadir</span>
                             </div>` : ''}
                         </div>
 
+                        <!-- Instruksi & Tombol -->
                         <p class="text-[9px] font-black uppercase text-slate-400 mb-4 tracking-widest leading-none text-center">Arahkan kamera ke QR Siswa</p>
-                        <button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-camera mr-2"></i> Aktifkan Kamera</button>
+                        ${!window.appState.scannerActive ? 
+                            `<button onclick="window.startScanner()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-camera"></i> Mulai Scan
+                            </button>` : 
+                            `<button onclick="window.stopScanner()" class="w-full bg-rose-50 text-rose-500 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-stop"></i> Stop Kamera
+                            </button>`
+                        }
                     </div>
                 </div>`;
             
@@ -1261,10 +1277,10 @@
         
         #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; max-width: 100%; height: auto; }
         aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        #reader { min-height: 250px; background: #0f172a; position: relative; }
         
-        /* Video Object Fit Fix & Mirroring Logic */
-        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; border-radius: 1.5rem !important; }
+        /* Scanner Specific Styles */
+        #reader { width: 100%; height: 100%; position: relative; overflow: hidden; }
+        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; border-radius: 0 !important; }
         .mirror-mode video { transform: scaleX(-1) !important; }
 
         input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; }
