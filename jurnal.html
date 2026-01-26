@@ -484,57 +484,67 @@
                     { facingMode: window.appState.cameraFacingMode }, 
                     config, 
                     async (text) => {
+                        // --- LOGIKA TOUCHLESS (TANPA SENTUH) ---
+                        
+                        // 1. Cek Kunci Logika (Bukan Pause Kamera)
+                        if (window.appState.scannerLock) return;
+
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         
                         if (student) {
                             const now = Date.now();
                             const lastTime = window.appState.lastScans[student.id] || 0;
                             
-                            // Logika: Jika sudah hadir hari ini
+                            // Cek status kehadiran
                             const isPresent = window.appState.attendance.some(a => 
                                 a.studentId === student.id && 
                                 a.date === window.appState.selectedDate && 
                                 a.status === 'Hadir'
                             );
 
-                            if (isPresent) {
-                                // ANTI-SPAM CERDAS: Abaikan jika scan ulang dalam 30 detik
-                                if (now - lastTime < 30000) return;
-                                
-                                window.appState.lastScans[student.id] = now;
-                                window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
-                                return;
-                            }
+                            // ANTI-SPAM 30 DETIK:
+                            // Jika sudah absen DAN baru scan < 30 detik lalu -> DIAM SAJA (Touchless ignore)
+                            if (isPresent && (now - lastTime < 30000)) return;
 
-                            // --- PROSES ABSEN BARU ---
-                            if (window.appState.scannerLock) return;
+                            // KUNCI LOGIKA PEMBACAAN SEKARANG
+                            // (Kamera tetap jalan di background, tapi kode di bawah tidak akan dieksekusi lagi sampai dibuka)
                             window.appState.scannerLock = true;
                             window.appState.lastScans[student.id] = now;
 
-                            // PERBAIKAN: KAMERA TIDAK DI-PAUSE (KONTINYU)
-                            // Kamera tetap jalan di background agar tidak perlu restart berat
+                            if (!isPresent) {
+                                // --- KASUS: BERHASIL HADIR ---
+                                if (navigator.vibrate) navigator.vibrate(200);
 
-                            // 1. Simpan Data
-                            await window.markAttendance(student.id, 'Hadir');
-                            
-                            // 2. Tampilkan Overlay
-                            window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
-                            window.renderApp();
+                                // 1. Simpan Data
+                                await window.markAttendance(student.id, 'Hadir');
+                                
+                                // 2. Tampilkan Popup Overlay
+                                window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
+                                window.renderApp();
 
-                            // 3. Auto Reset setelah 2.5 detik (Tanpa reload kamera)
-                            setTimeout(() => {
-                                window.appState.scanSuccessPopup.show = false;
-                                window.renderApp(); // Hilangkan popup
-                                window.appState.scannerLock = false; // Siap scan siswa berikutnya
-                            }, 2500); 
+                                // 3. AUTO RESET (Touchless)
+                                // Biarkan kamera tetap jalan, hanya buka kunci logika setelah popup hilang
+                                setTimeout(() => {
+                                    window.appState.scanSuccessPopup.show = false;
+                                    window.renderApp(); // Hapus popup
+                                    window.appState.scannerLock = false; // SIAP BACA LAGI
+                                }, 2500); 
 
-                        } else {
-                            // QR Tidak Dikenal
-                            if (!window.appState.scannerLock) {
-                                window.appState.scannerLock = true;
-                                window.showNotif("QR Code tidak terdaftar.", "error");
-                                setTimeout(() => { window.appState.scannerLock = false; }, 2000);
+                            } else {
+                                // --- KASUS: SUDAH HADIR (Tapi > 30 detik lalu) ---
+                                // Beri peringatan visual sekilas
+                                window.showNotif(`${student.nama_siswa} sudah absen.`, "warning");
+                                
+                                // Buka kunci lebih cepat
+                                setTimeout(() => { 
+                                    window.appState.scannerLock = false; 
+                                }, 2000);
                             }
+                        } else {
+                            // --- KASUS: QR TIDAK DIKENAL ---
+                            window.appState.scannerLock = true;
+                            window.showNotif("QR Code tidak terdaftar.", "error");
+                            setTimeout(() => { window.appState.scannerLock = false; }, 2000);
                         }
                     },
                     (errorMessage) => { }
