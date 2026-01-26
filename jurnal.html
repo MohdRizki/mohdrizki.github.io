@@ -166,21 +166,48 @@
             e.preventDefault();
             const pinValue = e.target.pin.value;
             window.appState.isLoggingIn = true;
-            window.renderApp();
+            
+            // Render ulang tombol loading
+            const btn = e.target.querySelector('button');
+            if(btn) {
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Memeriksa...';
+                btn.classList.add('opacity-75', 'cursor-wait');
+            }
+
             try {
                 const securityRef = collection(db, 'artifacts', appId, 'public', 'data', 'security');
                 const snapshot = await getDocs(securityRef);
                 let foundTeacherId = null;
                 snapshot.forEach(doc => { if (doc.data().pin?.toString() === pinValue) foundTeacherId = doc.id; });
+                
                 if (foundTeacherId) {
-                    window.appState.teacherId = foundTeacherId;
-                    window.appState.isAuthenticated = true;
-                    window.initDataListeners();
-                    window.showNotif("Login Berhasil");
-                    await window.setView('dashboard');
-                } else { window.showNotif("Kode PIN Tidak Terdaftar!", "error"); }
-            } catch (err) { window.appState.loginError = "Gagal Verifikasi"; }
-            finally { window.appState.isLoggingIn = false; window.renderApp(); }
+                    // EFEK TRANSISI SMOOTH
+                    const loginCard = document.querySelector('.bg-white.p-8');
+                    if(loginCard) {
+                        loginCard.style.transition = "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)";
+                        loginCard.style.transform = "scale(0.9) translateY(20px)";
+                        loginCard.style.opacity = "0";
+                    }
+
+                    window.showNotif("Login Berhasil! Menyiapkan Dashboard...");
+                    
+                    // Jeda sedikit untuk animasi sebelum switch view
+                    setTimeout(() => {
+                        window.appState.teacherId = foundTeacherId;
+                        window.appState.isAuthenticated = true;
+                        window.initDataListeners();
+                        window.setView('dashboard');
+                    }, 600);
+                } else { 
+                    window.showNotif("Kode PIN Tidak Terdaftar!", "error"); 
+                    window.appState.isLoggingIn = false;
+                    window.renderApp();
+                }
+            } catch (err) { 
+                window.appState.loginError = "Gagal Verifikasi"; 
+                window.appState.isLoggingIn = false;
+                window.renderApp();
+            }
         };
 
         window.handleLogout = async () => {
@@ -452,10 +479,11 @@
                 window.appState.html5QrCode = new window.Html5Qrcode("reader");
                 
                 const config = { 
-                    fps: 10, 
+                    fps: 15, // FPS lebih tinggi untuk responsivitas
                     qrbox: { width: 250, height: 250 },
                     aspectRatio: 1.0,
-                    showTorchButtonIfSupported: true
+                    showTorchButtonIfSupported: true,
+                    disableFlip: false // Biarkan library menangani flip dasar
                 };
                 
                 window.appState.scannerActive = true; 
@@ -464,16 +492,19 @@
                     { facingMode: window.appState.cameraFacingMode }, 
                     config, 
                     async (text) => {
-                        // 1. CEK LOCK SEGERA (Anti-Spam)
+                        // 1. LOCK SEGERA: Cegah pembacaan berulang frame milidetik berikutnya
                         if (window.appState.scannerLock) return;
+                        window.appState.scannerLock = true; 
+
+                        // 2. PAUSE KAMERA: Efek "Freeze" agar pengguna tahu scan tertangkap
+                        try { window.appState.html5QrCode.pause(true); } catch(e) {}
 
                         const student = window.appState.students.find(s => s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         
                         if (student) {
-                            window.appState.scannerLock = true; // Kunci scanner agar tidak scan berulang
-                            
                             if (navigator.vibrate) navigator.vibrate(200);
                             
+                            // Cek lokal data presensi hari ini
                             const isAlreadyPresent = window.appState.attendance.some(a => 
                                 a.studentId === student.id && 
                                 a.date === window.appState.selectedDate && 
@@ -481,43 +512,51 @@
                             );
 
                             if (!isAlreadyPresent) {
-                                // PAUSE KAMERA (Freeze Frame saat sukses agar terlihat jelas siapa yang hadir)
-                                try { window.appState.html5QrCode.pause(true); } catch(e) {}
-
+                                // --- PROSES HADIR ---
                                 await window.markAttendance(student.id, 'Hadir');
                                 
-                                // TAMPILKAN POPUP OVERLAY
+                                // Tampilkan Popup Overlay
                                 window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
                                 window.renderApp();
 
-                                // JEDA 2.5 DETIK SEBELUM LANJUT KE SISWA BERIKUTNYA
+                                // Reset Scanner setelah 2.5 detik
                                 setTimeout(() => {
                                     window.appState.scanSuccessPopup.show = false;
-                                    window.renderApp();
+                                    window.renderApp(); // Hilangkan popup
                                     
-                                    // RESUME KAMERA & BUKA KUNCI OTOMATIS
+                                    // Resume Kamera & Buka Lock
                                     try { window.appState.html5QrCode.resume(); } catch(e) {}
                                     window.appState.scannerLock = false; 
                                 }, 2500); 
                             } else {
+                                // --- SUDAH HADIR ---
                                 window.showNotif(`${student.nama_siswa} sudah absen hari ini.`, "warning");
-                                // Beri jeda pendek agar tidak spam notif yang sama
-                                setTimeout(() => { window.appState.scannerLock = false; }, 2000);
+                                
+                                // Resume lebih cepat untuk warning
+                                setTimeout(() => { 
+                                    try { window.appState.html5QrCode.resume(); } catch(e) {}
+                                    window.appState.scannerLock = false; 
+                                }, 2000);
                             }
                         } else {
-                            if (!window.appState.scannerLock) {
-                                window.appState.scannerLock = true;
-                                window.showNotif("QR Code tidak terdaftar.", "error");
-                                setTimeout(() => { window.appState.scannerLock = false; }, 2000);
-                            }
+                            // --- QR TIDAK DIKENAL ---
+                            window.showNotif("QR Code tidak terdaftar dalam database.", "error");
+                            
+                            setTimeout(() => { 
+                                try { window.appState.html5QrCode.resume(); } catch(e) {}
+                                window.appState.scannerLock = false; 
+                            }, 1500);
                         }
                     },
-                    (errorMessage) => { }
+                    (errorMessage) => { 
+                        // Abaikan error scanning frame kosong 
+                    }
                 );
             } catch (err) { 
                 console.error("Camera Error:", err);
                 window.showNotif("Gagal akses kamera: " + (err.message || err), "error"); 
                 window.appState.scannerActive = false;
+                window.appState.isScannerStarting = false;
             } finally { 
                 window.appState.isScannerStarting = false; 
             }
@@ -1168,7 +1207,7 @@
             if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn space-y-8 pb-10 text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 border shadow-sm space-y-6 text-left"><h4 class="font-black text-xl uppercase mb-4 leading-none text-slate-800 text-left">Profil Guru</h4><div class="space-y-4 text-left"><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div class="space-y-2 border-t pt-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left">KLS ${k}</span></label>`).join('')}</div></div></div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Profil</button></form><div class="bg-amber-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-amber-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-amber-700 leading-none text-left">Pemeliharaan Data</h4><div class="space-y-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Reset Presensi per Bulan</label><div class="flex gap-3 text-left"><input type="month" id="reset-month-picker" class="flex-grow bg-white rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button onclick="window.handleResetAttendance()" class="bg-amber-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest text-center transition-all hover:bg-amber-700"><i class="fa-solid fa-rotate-right mr-2"></i> Reset Bulan</button></div></div></div><div class="bg-rose-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-rose-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center"><i class="fa-solid fa-stairs mr-2"></i> Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center transition-all hover:bg-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Bersihkan Database</button></div></div></div>`;
 
             if (v === 'scanner') {
-                // DETEKSI OTOMATIS: Jika Desktop/Laptop (bukan mobile), paksa mirror.
+                // LOGIKA MIRRORING: Default mirror untuk Desktop (biasanya webcam depan) & Kamera Depan HP
                 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
                 const useMirror = window.appState.cameraFacingMode === 'user' || !isMobile;
 
@@ -1177,7 +1216,7 @@
                     <div class="bg-white rounded-[2.5rem] p-6 border shadow-sm text-center flex flex-col items-center w-full max-w-sm relative">
                         
                         <div class="w-full flex justify-end mb-4">
-                            <button onclick="window.switchCamera()" class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-200 transition-all">
+                            <button onclick="window.switchCamera()" class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-200 transition-all" title="Ganti Kamera">
                                 <i class="fa-solid fa-camera-rotate"></i>
                             </button>
                         </div>
