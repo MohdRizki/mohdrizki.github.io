@@ -102,12 +102,6 @@
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
             editModal: { show: false, id: null, name: '' },
-            
-            // State untuk Pendaftaran QR Lama
-            scanMode: 'attendance', // 'attendance' atau 'register'
-            tempQR: '',
-            showRegisterQRModal: false,
-
             scannerLock: false,
             scanSuccessPopup: { show: false, studentName: '' },
             lastScans: {} 
@@ -289,37 +283,6 @@
                 window.appState.editModal.show = false;
                 window.renderApp();
             }
-        };
-
-        // --- NEW: Handle Simpan QR Lama ---
-        window.handleSaveRegisteredQR = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const nama = formData.get('nama');
-            const kelas = formData.get('kelas');
-            const qr = window.appState.tempQR;
-
-            if(!nama || !qr) return;
-
-            // Simpan siswa baru dengan kode_qr custom
-            await addDoc(getColRef('students'), { 
-                nama_siswa: nama, 
-                kelas: kelas, 
-                kode_qr: qr,
-                createdAt: new Date().toISOString() 
-            });
-
-            window.showNotif("QR Berhasil Didaftarkan!");
-            window.appState.showRegisterQRModal = false;
-            window.appState.tempQR = '';
-            window.renderApp();
-        };
-
-        // --- NEW: Trigger Mode Register QR ---
-        window.startRegisterQR = () => {
-            window.appState.scanMode = 'register';
-            window.setView('scanner');
-            window.showNotif("Mode Pendaftaran: Scan QR Siswa");
         };
 
         window.handleResetAttendance = async () => {
@@ -526,25 +489,6 @@
                     config, 
                     async (text) => {
                         if (window.appState.scannerLock) return;
-
-                        // --- MODE PENDAFTARAN QR LAMA ---
-                        if (window.appState.scanMode === 'register') {
-                            window.appState.scannerLock = true;
-                            
-                            // 1. Simpan QR Sementara
-                            window.appState.tempQR = text;
-                            
-                            if (navigator.vibrate) navigator.vibrate(200);
-                            
-                            // 2. Stop Scanner & Pindah ke View Input
-                            await window.appState.html5QrCode.stop();
-                            window.appState.scanMode = 'attendance'; // Reset mode
-                            window.appState.showRegisterQRModal = true;
-                            window.appState.scannerLock = false;
-                            
-                            window.setView('students'); // Kembali ke menu siswa
-                            return;
-                        }
 
                         // --- MODE PRESENSI (DEFAULT) ---
                         // Mencari siswa di data (Cek Kode QR Custom ATAU Nama Siswa)
@@ -806,14 +750,20 @@
                             .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
                             .map((s, i) => { 
                                 const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem && a.date.startsWith(targetMonth)); 
-                                return [i+1, s.nama_siswa, s.kelas, att.filter(x=>x.status==='Hadir').length, att.filter(x=>x.status==='Izin').length, att.filter(x=>x.status==='Sakit').length, att.filter(x=>x.status==='Alpa').length]; 
+                                // REVISI: Hapus kolom kelas (index 2) dari array
+                                return [i+1, s.nama_siswa, att.filter(x=>x.status==='Hadir').length, att.filter(x=>x.status==='Izin').length, att.filter(x=>x.status==='Sakit').length, att.filter(x=>x.status==='Alpa').length]; 
                             });
                         docPdf.autoTable({ 
                             theme: 'grid',
-                            head: [['No', 'Nama Siswa', 'Kls', 'H', 'I', 'S', 'A']], 
+                            // REVISI: Hapus kolom 'Kls' dari header
+                            head: [['No', 'Nama Siswa', 'H', 'I', 'S', 'A']], 
                             body, 
                             startY: 30,
-                            styles: tableStyles
+                            styles: tableStyles,
+                            // REVISI: Header biru dan Bold
+                            headStyles: { fillColor: [37, 99, 235], fontStyle: 'bold', textColor: 255 }, 
+                            // REVISI: Kecilkan kolom No (index 0)
+                            columnStyles: { 0: { cellWidth: 10 } }
                         });
                     }
                 }
@@ -935,35 +885,6 @@
 
                     ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2 text-center">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8 text-center whitespace-pre-line">${window.appState.modal.message}</p><div class="flex gap-3 text-center"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
                     ${window.appState.editModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-blue-600 mb-2 text-center">Edit Siswa</h3><input type="text" id="edit-student-input" value="${window.appState.editModal.name}" class="w-full bg-slate-50 rounded-xl p-4 font-black text-center mb-6 border-none outline-none text-slate-800" onkeydown="if(event.key === 'Enter') window.saveStudentName()"><div class="flex gap-3 text-center"><button onclick="window.appState.editModal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.saveStudentName()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Simpan</button></div></div></div>` : ''}
-                    
-                    ${/* MODAL REGISTER QR LAMA */ ''}
-                    ${window.appState.showRegisterQRModal ? `
-                    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6">
-                        <div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn">
-                            <h3 class="text-xl font-black uppercase text-blue-600 mb-2 text-center">Daftarkan QR Lama</h3>
-                            <div class="bg-slate-100 p-3 rounded-xl mb-4 text-center">
-                                <p class="text-[9px] text-slate-400 uppercase font-bold">Data QR Terbaca</p>
-                                <p class="font-mono text-xs font-bold text-slate-700 break-all">${window.appState.tempQR}</p>
-                            </div>
-                            <form onsubmit="window.handleSaveRegisteredQR(event)" class="space-y-4">
-                                <div>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Nama Siswa</label>
-                                    <input type="text" name="nama" placeholder="Nama Lengkap..." required autofocus class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-center">
-                                </div>
-                                <div>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Kelas</label>
-                                    <select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-center">
-                                        ${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(k => `<option value="${k}">Kelas ${k}</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div class="flex gap-3 text-center mt-6">
-                                    <button type="button" onclick="window.appState.showRegisterQRModal = false; window.appState.tempQR = ''; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button>
-                                    <button type="submit" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Simpan</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>` : ''}
-
                     ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-8 md:p-10 max-w-[320px] w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6 text-center text-slate-800">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 flex justify-center items-center mb-8 mx-auto w-[200px] h-[200px] md:w-[256px] md:h-[256px] text-center overflow-hidden"></div><div class="flex flex-col gap-2 text-center"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-center transition-all hover:bg-blue-700 shadow-lg"><i class="fa-solid fa-download mr-2"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 text-slate-500 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center hover:bg-slate-200 transition-all">Tutup</button></div></div></div>` : ''}
                 </div>`;
             
@@ -1174,7 +1095,7 @@
                 </div>`;
             }
 
-            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm h-fit text-left"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-rotate mr-2"></i> Sinkron Database</button></form><button onclick="window.startRegisterQR()" class="w-full mt-4 bg-purple-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center flex items-center justify-center gap-2"><i class="fa-solid fa-qrcode"></i> Daftarkan QR Lama</button></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left"><div class="flex justify-between items-center mb-6 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center"><i class="fa-solid fa-file-zipper mr-2"></i> ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1 text-center"><button onclick="window.handleEditStudent('${s.id}')" class="text-slate-400 hover:text-blue-500 p-2 rounded-lg transition-colors"><i class="fa-solid fa-pen-to-square"></i></button><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode text-center"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div></div>`).join('')}</div></div></div>`;
+            if (v === 'students') return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm h-fit text-left"><h4 class="font-black text-xl uppercase mb-6 text-slate-800 text-left">Pendaftaran</h4><form onsubmit="window.handleBulkStudents(event)" class="space-y-4 text-left"><select name="grade" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><textarea name="names" rows="10" required placeholder="Daftar nama..." class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none resize-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-rotate mr-2"></i> Sinkron Database</button></form></div><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm flex flex-col h-full min-h-[400px] text-left"><div class="flex justify-between items-center mb-6 shrink-0 text-left text-left"><h4 class="font-black text-xl uppercase leading-none text-slate-800 text-left">Database</h4><button onclick="window.downloadBulkQR()" class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm text-center"><i class="fa-solid fa-file-zipper mr-2"></i> ZIP QR</button></div><div class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-grow text-left">${window.appState.students.sort((a,b)=>a.kelas-b.kelas || a.nama_siswa.localeCompare(b.nama_siswa)).map(s => `<div class="flex items-center justify-between p-4 bg-slate-50 border rounded-2xl text-left"><div class="flex items-center gap-4 text-left text-left"><div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center font-black text-[10px] text-blue-600 border text-center text-center">${s.kelas}</div><span class="font-black text-[10px] uppercase text-slate-800 text-left">${s.nama_siswa}</span></div><div class="flex gap-1 text-center"><button onclick="window.handleEditStudent('${s.id}')" class="text-slate-400 hover:text-blue-500 p-2 rounded-lg transition-colors"><i class="fa-solid fa-pen-to-square"></i></button><button onclick='window.viewQR(${JSON.stringify(s)})' class="text-blue-500 p-2 hover:bg-blue-100 rounded-lg text-center"><i class="fa-solid fa-qrcode text-center"></i></button><button onclick="window.deleteDocData('students', '${s.id}')" class="text-rose-400 p-2 hover:bg-rose-100 rounded-lg text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div></div>`).join('')}</div></div></div>`;
             
             if (v === 'mapel') return `<div class="max-w-2xl mx-auto animate-fadeIn text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left">Kelola Mapel Baru</h4><form onsubmit="window.handleSaveMapel(event)" class="space-y-4 text-left"><select name="kelas" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left">${(diampu.length > 0 ? diampu : [1,2,3,4,5,6]).map(v => `<option value="${v}">Kelas ${v}</option>`).join('')}</select><input type="text" name="nama_mapel" placeholder="Nama Mapel..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><textarea name="tujuan_pembelajaran" placeholder="TP (Gunakan Enter untuk list baru)..." required class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none min-h-[120px] border-none text-xs shadow-inner text-left text-left"></textarea><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Mapel & TP</button></form></div>
                 <div class="space-y-4 pb-10 text-left text-left">
@@ -1328,9 +1249,6 @@
                             </button>
                         </div>
                         
-                        ${window.appState.scanMode === 'register' ? 
-                        `<div class="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl mb-4 font-black text-[10px] uppercase tracking-widest animate-pulse w-full">Mode Pendaftaran QR</div>` : ''}
-
                         <!-- Wrapper kamera & overlay -->
                         <div class="relative w-full aspect-square mb-8 rounded-[2rem] overflow-hidden border-8 border-slate-50 shadow-2xl shrink-0 bg-slate-900">
                             <div id="reader" class="w-full h-full bg-slate-900 ${useMirror ? 'mirror-mode' : ''}"></div>
@@ -1433,7 +1351,7 @@
         #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; max-width: 100%; height: auto; }
         aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        /* Scanner Specific Styles */
+        /* Scanner Specific Styles - PERBAIKAN KAMERA TERBALIK & TAMPILAN */
         #reader { width: 100%; height: 100%; position: relative; overflow: hidden; background: #000; }
         
         /* Reset transform agar kamera belakang normal (tidak terbalik atas-bawah/kiri-kanan) */
