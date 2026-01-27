@@ -98,7 +98,8 @@
             populationExpanded: false,
             scannerActive: false,
             html5QrCode: null,
-            cameraFacingMode: "environment", 
+            // --- UPDATE: Default kamera depan ('user') ---
+            cameraFacingMode: "user", 
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
             editModal: { show: false, id: null, name: '' },
@@ -448,12 +449,14 @@
             window.appState.cameraFacingMode = window.appState.cameraFacingMode === "environment" ? "user" : "environment";
             
             // --- FIX: Update UI Class Mirroring secara manual ---
-            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-            const useMirror = window.appState.cameraFacingMode === 'user' || !isMobile;
             const readerEl = document.getElementById('reader');
             if (readerEl) {
-                if (useMirror) readerEl.classList.add('mirror-mode');
-                else readerEl.classList.remove('mirror-mode');
+                // Jika mode 'user' (depan), aktifkan mirror. Selain itu matikan.
+                if (window.appState.cameraFacingMode === 'user') {
+                    readerEl.classList.add('mirror-mode');
+                } else {
+                    readerEl.classList.remove('mirror-mode');
+                }
             }
             // ---------------------------------------------------
 
@@ -469,6 +472,14 @@
         window.startScanner = async () => {
             const container = document.getElementById('reader');
             if (!container || window.appState.isScannerStarting) return;
+
+            // --- FIX: FORCE MIRROR CLASS SAAT START ---
+            if (window.appState.cameraFacingMode === 'user') {
+                container.classList.add('mirror-mode');
+            } else {
+                container.classList.remove('mirror-mode');
+            }
+            // -------------------------------------------
 
             // Validasi HTTPS
             if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
@@ -1388,7 +1399,8 @@
         }
         
         /* Khusus kamera depan (selfie), kita mirror secara horizontal saja */
-        .mirror-mode video { 
+        /* GUNAKAN ID AGAR SPECIFICITY LEBIH TINGGI DARI RULE DI ATAS */
+        #reader.mirror-mode video { 
             transform: scaleX(-1) !important; 
         }
 
