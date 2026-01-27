@@ -446,6 +446,17 @@
         // --- 9. SCANNER (OPTIMIZED LOGIC) ---
         window.switchCamera = async () => {
             window.appState.cameraFacingMode = window.appState.cameraFacingMode === "environment" ? "user" : "environment";
+            
+            // --- FIX: Update UI Class Mirroring secara manual ---
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const useMirror = window.appState.cameraFacingMode === 'user' || !isMobile;
+            const readerEl = document.getElementById('reader');
+            if (readerEl) {
+                if (useMirror) readerEl.classList.add('mirror-mode');
+                else readerEl.classList.remove('mirror-mode');
+            }
+            // ---------------------------------------------------
+
             await window.stopScanner();
             setTimeout(window.startScanner, 200);
         };
