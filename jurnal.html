@@ -1298,10 +1298,22 @@
         #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; max-width: 100%; height: auto; }
         aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        /* Scanner Specific Styles */
-        #reader { width: 100%; height: 100%; position: relative; overflow: hidden; }
-        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; border-radius: 0 !important; }
-        .mirror-mode video { transform: scaleX(-1) !important; }
+        /* Scanner Specific Styles - PERBAIKAN KAMERA TERBALIK & TAMPILAN */
+        #reader { width: 100%; height: 100%; position: relative; overflow: hidden; background: #000; }
+        
+        /* Reset transform agar kamera belakang normal (tidak terbalik atas-bawah/kiri-kanan) */
+        #reader video { 
+            object-fit: cover !important; 
+            width: 100% !important; 
+            height: 100% !important; 
+            border-radius: 0 !important; 
+            transform: none !important; 
+        }
+        
+        /* Khusus kamera depan (selfie), kita mirror secara horizontal saja */
+        .mirror-mode video { 
+            transform: scaleX(-1) !important; 
+        }
 
         input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; }
         
