@@ -107,7 +107,6 @@
             lastScans: {} 
         };
 
-        // Mapping View ke Judul Bahasa Indonesia
         const viewTitles = {
             'dashboard': 'Beranda',
             'scanner': 'Scan QR Presensi',
@@ -475,7 +474,7 @@
                     fps: 20, 
                     qrbox: (viewfinderWidth, viewfinderHeight) => {
                         const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                        const qrboxSize = Math.floor(minEdge * 0.7);
+                        const qrboxSize = Math.floor(minEdge * 0.85); // Increased scan area
                         return { width: qrboxSize, height: qrboxSize };
                     },
                     aspectRatio: 1.0,
@@ -491,7 +490,6 @@
                         if (window.appState.scannerLock) return;
 
                         // --- MODE PRESENSI (DEFAULT) ---
-                        // Mencari siswa di data (Cek Kode QR Custom ATAU Nama Siswa)
                         const student = window.appState.students.find(s => 
                             (s.kode_qr && s.kode_qr === text) || 
                             s.nama_siswa.toLowerCase() === text.trim().toLowerCase()
@@ -665,11 +663,18 @@
                 docPdf.setFontSize(10); 
                 docPdf.text(`Laporan Bulan: ${targetMonth} | TA: ${sets.tahun_ajaran || '-'} | Kelas: ${window.appState.selectedKelas || '-'}`, pageWidth / 2, 22, {align:'center'});
                 
-                // --- SETTING GARIS (GRID THEME) ---
+                // --- SETTING GARIS & STYLE TABEL ---
                 const tableStyles = { 
                     fontSize: 7,
-                    lineWidth: 0.1, // Tipis
-                    lineColor: [200, 200, 200] // Abu-abu muda
+                    lineWidth: 0.1, 
+                    lineColor: [200, 200, 200]
+                };
+
+                const headStyles = {
+                    fillColor: [37, 99, 235], // Blue 600
+                    textColor: 255, // White
+                    fontStyle: 'bold',
+                    halign: 'center'
                 };
 
                 if (type === 'journals') {
@@ -696,7 +701,8 @@
                         head: [['No', 'Hari', 'Tgl', 'Jam', 'Kls', 'Mapel', 'TP', 'H', 'I', 'S', 'A', 'Catatan']], 
                         body, 
                         startY: 30, 
-                        styles: tableStyles 
+                        styles: tableStyles,
+                        headStyles: headStyles
                     });
                 } else if (type === 'reports') {
                     if (viewType === 'rinci') {
@@ -732,25 +738,30 @@
                             head, 
                             body, 
                             startY: 30, 
-                            styles: { ...tableStyles, fontSize: 6, cellPadding: 1 }, 
-                            columnStyles: { 1: { cellWidth: 40 } },
+                            styles: { ...tableStyles, fontSize: 6, cellPadding: 1 },
+                            headStyles: headStyles,
+                            columnStyles: { 
+                                0: { cellWidth: 10, halign: 'center' }, // No
+                                1: { cellWidth: 40 } // Nama
+                            },
                             didParseCell: function(data) {
                                 if (data.section === 'head' && data.column.index >= 2) { 
                                     const dayIndex = data.column.index - 2;
                                     const dStr = `${targetMonth}-${String(dayIndex+1).padStart(2, '0')}`;
                                     if (window.isHoliday(dStr)) {
-                                        data.cell.styles.textColor = [220, 38, 38]; 
+                                        data.cell.styles.textColor = [255, 200, 200]; // Lighter red on blue header
                                     }
                                 }
                             }
                         });
                     } else {
+                        // View Rekap
                         const body = window.appState.students
                             .filter(s => String(s.kelas) === String(window.appState.selectedKelas))
                             .sort((a,b)=>a.nama_siswa.localeCompare(b.nama_siswa))
                             .map((s, i) => { 
                                 const att = window.appState.attendance.filter(a => a.studentId === s.id && a.semester === curSem && a.date.startsWith(targetMonth)); 
-                                // REVISI: Hapus kolom kelas (index 2) dari array
+                                // REVISI: Hapus kolom kelas
                                 return [i+1, s.nama_siswa, att.filter(x=>x.status==='Hadir').length, att.filter(x=>x.status==='Izin').length, att.filter(x=>x.status==='Sakit').length, att.filter(x=>x.status==='Alpa').length]; 
                             });
                         docPdf.autoTable({ 
@@ -760,10 +771,11 @@
                             body, 
                             startY: 30,
                             styles: tableStyles,
-                            // REVISI: Header biru dan Bold
-                            headStyles: { fillColor: [37, 99, 235], fontStyle: 'bold', textColor: 255 }, 
-                            // REVISI: Kecilkan kolom No (index 0)
-                            columnStyles: { 0: { cellWidth: 10 } }
+                            headStyles: headStyles,
+                            columnStyles: { 
+                                0: { cellWidth: 12, halign: 'center' }, // Narrower "No"
+                                2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' }
+                            }
                         });
                     }
                 }
@@ -885,6 +897,7 @@
 
                     ${window.appState.modal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-rose-600 mb-2 text-center">${window.appState.modal.title}</h3><p class="text-sm text-slate-500 font-medium mb-8 text-center whitespace-pre-line">${window.appState.modal.message}</p><div class="flex gap-3 text-center"><button onclick="window.appState.modal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.appState.modal.onConfirm()" class="flex-1 bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Ya, Lanjutkan</button></div></div></div>` : ''}
                     ${window.appState.editModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-fadeIn text-center"><h3 class="text-xl font-black uppercase text-blue-600 mb-2 text-center">Edit Siswa</h3><input type="text" id="edit-student-input" value="${window.appState.editModal.name}" class="w-full bg-slate-50 rounded-xl p-4 font-black text-center mb-6 border-none outline-none text-slate-800" onkeydown="if(event.key === 'Enter') window.saveStudentName()"><div class="flex gap-3 text-center"><button onclick="window.appState.editModal.show = false; window.renderApp();" class="flex-1 bg-slate-100 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Batal</button><button onclick="window.saveStudentName()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-center">Simpan</button></div></div></div>` : ''}
+                    
                     ${window.appState.qrModal.show ? `<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"><div class="bg-white rounded-[3rem] p-8 md:p-10 max-w-[320px] w-full shadow-2xl text-center"><h3 class="text-lg font-black uppercase mb-6 text-center text-slate-800">${window.appState.qrModal.student.nama_siswa}</h3><div id="qr-canvas-render" class="bg-white p-4 rounded-3xl border-4 border-slate-50 flex justify-center items-center mb-8 mx-auto w-[200px] h-[200px] md:w-[256px] md:h-[256px] text-center overflow-hidden"></div><div class="flex flex-col gap-2 text-center"><button onclick="window.downloadQR('${window.appState.qrModal.student.nama_siswa}')" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 text-center transition-all hover:bg-blue-700 shadow-lg"><i class="fa-solid fa-download mr-2"></i> Simpan PNG</button><button onclick="window.appState.qrModal.show = false; window.renderApp();" class="bg-slate-100 text-slate-500 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center hover:bg-slate-200 transition-all">Tutup</button></div></div></div>` : ''}
                 </div>`;
             
