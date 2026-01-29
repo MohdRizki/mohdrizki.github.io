@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REEZAPPS - Portofolio Digital Guru</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- OPTIMASI: Preload Gambar -->
+    <link rel="preload" as="image" href="https://i.imgur.com/BlIQzdZ.png">
+    <link rel="preload" as="image" href="https://i.imgur.com/BDai7er.png">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        
+        :root {
+            --brand-color: #ffffff;
+            --brand-glow: rgba(255, 255, 255, 0.4);
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Inter', sans-serif;
+            color: white;
+        }
+
+        /* Background System */
+        .bg-wrapper {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2;
+        }
+        .bg-fallback {
+            position: absolute; inset: 0;
+            background-image: url('https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=60&w=1080');
+            background-size: cover; background-position: center;
+            filter: blur(4px) brightness(0.5);
+        }
+        .bg-main {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%; object-fit: cover;
+            opacity: 0; transition: opacity 1.5s ease-in-out;
+            filter: blur(8px) brightness(0.6);
+            transform: scale(1.05);
+        }
+        .bg-overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(to right, rgba(0,0,0,0.8) 10%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%);
+        }
+
+        /* UI Elements */
+        .btn-glow { position: relative; z-index: 1; }
+        .btn-glow::after {
+            content: ''; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); width: 150%; height: 150%;
+            background: radial-gradient(circle, var(--brand-glow) 0%, rgba(0,0,0,0) 70%); z-index: -1;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            width: 140px; height: 85px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-8px);
+            border-color: var(--brand-color);
+        }
+        
+        .nav-item {
+            font-size: 11px; font-weight: 700; letter-spacing: 1.5px; opacity: 0.7; transition: 0.3s; cursor: pointer;
+        }
+        .nav-item:hover, .nav-item.active { opacity: 1; color: var(--brand-color); }
+        .nav-item.active { border-bottom: 2px solid var(--brand-color); padding-bottom: 2px; }
+
+        .character-container {
+            position: absolute; right: 0%; bottom: -220px; 
+            height: 115vh; display: flex; align-items: flex-end;
+            pointer-events: none; z-index: 5;
+        }
+        .character-img { height: 100%; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,0.5)); }
+
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+            z-index: 100; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #1a1a1a; border: 1px solid #333; padding: 2rem; border-radius: 20px;
+            width: 90%; max-width: 650px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            max-height: 90vh; overflow-y: auto;
+        }
+
+        /* Grid Layout Modern */
+        .grid-layout {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 5px;
+        }
+        @media (min-width: 640px) { .grid-layout { grid-template-columns: repeat(3, 1fr); } }
+
+        .app-grid-item {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            padding: 1.25rem 0.75rem; background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
+            transition: 0.3s; text-decoration: none; color: white; height: 100%;
+            position: relative; overflow: hidden; cursor: pointer;
+        }
+        .app-grid-item:hover {
+            background: rgba(255, 255, 255, 0.12); transform: translateY(-3px); border-color: rgba(255,255,255,0.3);
+        }
+        .app-grid-item i { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .app-grid-item .item-title { font-size: 0.8rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.5rem; }
+        
+        /* Badges for Subject, Level, Class */
+        .item-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; width: 100%; margin-top: 4px; }
+        .tag {
+            font-size: 9px; padding: 2px 6px; border-radius: 4px;
+            background: rgba(255,255,255,0.1); color: #aaa; text-transform: uppercase; font-weight: 600;
+        }
+        .tag.subject { color: #60a5fa; background: rgba(37, 99, 235, 0.1); }
+        .tag.level { color: #facc15; background: rgba(234, 179, 8, 0.1); }
+
+        .text-brand { color: var(--brand-color); }
+        .admin-trigger { position: fixed; bottom: 10px; right: 10px; opacity: 0.05; cursor: pointer; transition: 0.3s; z-index: 60; font-size: 12px; color: white; }
+        .admin-trigger:hover { opacity: 1; }
+
+        input, select, textarea {
+            width: 100%; background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: white; }
+        
+        .icon-category-label { font-size: 0.7rem; color: #888; text-transform: uppercase; font-weight: bold; margin-top: 10px; margin-bottom: 5px; display: block; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 5px; }
+        .icon-option {
+            aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+            background: #2a2a2a; border: 1px solid #444; border-radius: 8px;
+            cursor: pointer; transition: 0.2s; color: #888;
+        }
+        .icon-option:hover { background: #333; color: white; }
+        .icon-option.selected { background: white; color: black; border-color: white; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
+
+        .color-swatches { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: 0.2s; }
+        .swatch:hover { transform: scale(1.1); }
+        .swatch.selected { border-color: white; box-shadow: 0 0 0 2px #1a1a1a; }
+
+        .file-upload-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 10px; background: #333; border: 1px dashed #666;
+            color: #ccc; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 12px;
+        }
+        .file-upload-btn:hover { background: #444; border-color: #fff; color: #fff; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <!-- Background System -->
+    <div class="bg-wrapper">
+        <div class="bg-fallback"></div>
+        <img src="https://i.imgur.com/BlIQzdZ.png" class="bg-main" onload="this.style.opacity=1" onerror="console.log('Imgur failed, using fallback')">
+        <div class="bg-overlay"></div>
+    </div>
+
+    <header class="fixed top-0 left-0 w-full flex justify-between items-center px-[8%] py-8 z-50">
+        <div class="flex items-center gap-3">
+            <img src="https://i.imgur.com/Mw1UViI.png" alt="REEZAPPS Logo" class="h-10 w-auto object-contain">
+            <div class="text-xl font-black tracking-tighter uppercase">REEZ<span class="text-brand">APPS</span></div>
+        </div>
+        <nav class="hidden md:flex gap-10">
+            <a href="#" class="nav-item active">HOME</a>
+            <span onclick="openAboutModal()" class="nav-item">TENTANG SAYA</span>
+        </nav>
+    </header>
+
+    <main class="relative h-screen flex items-center px-[8%] overflow-hidden">
+        <div class="max-w-xl z-10 mt-10">
+            <h1 id="heroTitleDisplay" class="text-4xl md:text-5xl font-black leading-[1.1] mb-4 tracking-tight uppercase">
+                LOADING...
+            </h1>
+            <p id="heroSubDisplay" class="text-base opacity-90 mb-8 font-medium leading-relaxed max-w-md text-gray-100">
+                <!-- Content via Firebase -->
+            </p>
+
+            <div class="btn-glow inline-block mb-12">
+                <!-- Direct Link to Apps Menu -->
+                <button onclick="window.openPublicModal('apps')" class="bg-white text-black text-[11px] font-black px-12 py-4 rounded-full tracking-[0.2em] uppercase hover:bg-gray-200 transition-all shadow-xl">
+                    AYO MULAI
+                </button>
+            </div>
+
+            <div id="navCardsContainer" class="flex flex-wrap gap-4 mt-2">
+                <!-- Cards via JS -->
+            </div>
+        </div>
+
+        <div class="character-container">
+            <img src="https://i.imgur.com/BDai7er.png" alt="Profil Guru" class="character-img" fetchpriority="high">
+        </div>
+
+        <div class="absolute bottom-10 left-[8%] flex gap-6 opacity-80">
+            <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="hover:text-white transition-colors"><i class="fab fa-instagram text-xl"></i></a>
+            <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="hover:text-white transition-colors"><i class="fab fa-tiktok text-xl"></i></a>
+            <a href="https://youtube.com/@mohdrizkkyy?si=70l_xrZIITbJvCru" target="_blank" class="hover:text-white transition-colors"><i class="fab fa-youtube text-xl"></i></a>
+        </div>
+        
+        <div class="absolute bottom-10 right-[8%] text-[9px] font-bold opacity-30 tracking-[0.3em] uppercase hidden md:block">
+            REEZAPPS PORTFOLIO © 2024
+        </div>
+    </main>
+
+    <div class="admin-trigger" onclick="openKeyModal()">
+        <i class="fas fa-lock"></i>
+    </div>
+
+    <!-- About Me Modal -->
+    <div id="aboutModal" class="modal-overlay" onclick="closeModal('aboutModal')">
+        <div class="modal-content relative" onclick="event.stopPropagation()">
+            <button onclick="closeModal('aboutModal')" class="absolute top-6 right-6 text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            
+            <div class="flex flex-col md:flex-row gap-8 items-center md:items-start">
+                <div class="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 border-white/20 shrink-0">
+                    <img src="https://i.imgur.com/BDai7er.png" class="w-full h-full object-cover bg-gray-800">
+                </div>
+                <div>
+                    <h2 class="text-2xl font-black mb-2 text-white uppercase tracking-tight">Mohamad Rizki, S.Pd., Gr.</h2>
+                    <div class="text-xs font-bold text-blue-400 mb-4 uppercase tracking-wider">Guru SD Negeri Pasirmae 1</div>
+                    <div class="text-sm text-gray-300 leading-relaxed space-y-3 text-justify">
+                        <p>
+                            Saya merupakan guru lulusan PGSD Universitas Sultan Ageng Tirtayasa. Selain itu, saya juga memiliki background Rekayasa Perangkat Lunak di SMK Negeri 4 Pandeglang.
+                        </p>
+                        <p>
+                            Sejak kecil, saya sangat berminat pada bidang seni, teknologi, dan sains. Dengan kombinasi keahlian RPL dan ilmu PGSD, saya berharap bisa membawa sesuatu yang positif dan inovatif dalam dunia pendidikan.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-6 pt-6 border-t border-white/10">
+                        <div class="text-xs font-bold text-gray-500 uppercase mb-3">Ikuti Saya</div>
+                        <div class="flex gap-4">
+                            <a href="https://instagram.com/mohdrizkkyy" target="_blank" class="flex items-center gap-2 bg-[#2a2a2a] px-4 py-2 rounded-full hover:bg-pink-600 transition-colors text-xs font-bold">
+                                <i class="fab fa-instagram"></i> @mohdrizkkyy
+                            </a>
+                            <a href="https://tiktok.com/@mohdrizkkyy" target="_blank" class="flex items-center gap-2 bg-[#2a2a2a] px-4 py-2 rounded-full hover:bg-black transition-colors text-xs font-bold border border-white/10">
+                                <i class="fab fa-tiktok"></i> @mohdrizkkyy
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="keyModal" class="modal-overlay">
+        <div class="modal-content text-center" style="max-width: 300px;">
+            <h3 class="text-lg font-bold mb-4 uppercase tracking-widest text-white">Akses Terbatas</h3>
+            <input type="text" id="accessKeyInput" placeholder="Masukkan Kode" class="text-center mb-4 text-white text-lg tracking-widest" autocomplete="off">
+            <div class="flex gap-2 justify-center">
+                <button onclick="validateKey()" class="bg-white text-black px-4 py-2 rounded text-xs font-bold uppercase hover:bg-gray-200">Masuk</button>
+                <button onclick="closeModal('keyModal')" class="bg-red-600 text-white px-4 py-2 rounded text-xs font-bold uppercase hover:bg-red-700">Batal</button>
+            </div>
+            <p id="keyError" class="text-red-500 text-xs mt-2 hidden">Kode Tidak Valid</p>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="dashModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-black uppercase tracking-widest text-brand">Pengaturan Hub</h2>
+                <button onclick="closeModal('dashModal')" class="text-gray-400 hover:text-white text-xl"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div class="flex border-b border-gray-700 mb-6">
+                <button onclick="switchTab('tab-hero')" class="flex-1 pb-2 text-sm font-bold border-b-2 border-white text-white" id="btn-tab-hero">Edit Teks</button>
+                <button onclick="switchTab('tab-apps')" class="flex-1 pb-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-300" id="btn-tab-apps">Konten</button>
+            </div>
+
+            <!-- Tab Edit Text -->
+            <div id="tab-hero">
+                <div class="bg-gray-800 p-4 rounded-lg mb-4">
+                    <label class="text-xs uppercase font-bold text-gray-400 mb-2 block">Judul Baris 1 (Putih)</label>
+                    <input type="text" id="editHeroLine1" class="border-gray-600 mb-4" placeholder="Contoh: SOLUSI DIGITAL">
+                    
+                    <label class="text-xs uppercase font-bold text-gray-400 mb-2 block">Judul Baris 2 (Berwarna)</label>
+                    <input type="text" id="editHeroLine2" class="border-gray-600 border-l-4 border-l-blue-500" placeholder="Contoh: UNTUK GURU HEBAT">
+                </div>
+                
+                <label class="text-xs uppercase font-bold text-gray-400 mb-2 block">Deskripsi Pendek</label>
+                <textarea id="editHeroSub" rows="3" class="border-gray-600"></textarea>
+
+                <button onclick="saveHeroSettings()" class="w-full mt-4 bg-green-600 text-white py-3 rounded-lg font-bold uppercase text-xs hover:bg-green-700 transition-colors shadow-lg">
+                    <i class="fas fa-save mr-2"></i> Simpan Teks
+                </button>
+            </div>
+
+            <!-- Tab Edit Apps & Materi -->
+            <div id="tab-apps" class="hidden">
+                <!-- Toggle Switch -->
+                <div class="flex bg-gray-800 rounded-lg p-1 mb-4">
+                    <button onclick="setAdminMode('apps')" id="mode-apps" class="flex-1 py-2 text-xs font-bold rounded bg-blue-600 text-white uppercase transition-all">Aplikasi</button>
+                    <button onclick="setAdminMode('materi')" id="mode-materi" class="flex-1 py-2 text-xs font-bold rounded text-gray-400 uppercase transition-all hover:text-white">Materi</button>
+                </div>
+
+                <h3 class="text-xs font-bold mb-3 text-gray-400 uppercase tracking-wider flex justify-between">
+                    <span>Daftar Item</span>
+                    <span id="currentModeLabel" class="text-blue-400">APLIKASI</span>
+                </h3>
+
+                <div id="adminAppsList" class="space-y-2 mb-8 max-h-48 overflow-y-auto pr-2">
+                    <!-- List Generated via JS -->
+                </div>
+
+                <div class="border-t border-gray-700 pt-6">
+                    <h3 class="text-sm font-bold mb-4 text-white uppercase flex items-center gap-2">
+                        <i class="fas fa-plus-circle text-blue-500"></i> <span id="formTitle">Tambah Item Baru</span>
+                    </h3>
+                    
+                    <div class="mb-4">
+                        <input type="text" id="newAppName" placeholder="Judul / Nama Materi" class="mb-2">
+                        
+                        <!-- Extra Fields for Materia -->
+                        <div id="materiFields" class="hidden grid grid-cols-3 gap-2 mb-2">
+                            <select id="newAppCategory">
+                                <option value="">- Mapel -</option>
+                                <option value="Matematika">Matematika</option>
+                                <option value="IPA">IPA</option>
+                                <option value="IPS">IPS</option>
+                                <option value="Biologi">Biologi</option>
+                                <option value="Fisika">Fisika</option>
+                                <option value="Kimia">Kimia</option>
+                                <option value="Bahasa">Bahasa</option>
+                                <option value="Seni">Seni</option>
+                                <option value="Umum">Umum</option>
+                            </select>
+                            <select id="newAppLevel">
+                                <option value="">- Jenjang -</option>
+                                <option value="SD">SD</option>
+                                <option value="SMP">SMP</option>
+                                <option value="SMA">SMA</option>
+                                <option value="SMK">SMK</option>
+                                <option value="Umum">Umum</option>
+                            </select>
+                            <select id="newAppClass">
+                                <option value="">- Kls -</option>
+                                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                                <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                                <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                            </select>
+                        </div>
+
+                        <!-- URL Input & PDF Upload (HIDDEN FOR APPS) -->
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" id="newAppUrl" placeholder="Link URL / Google Drive" class="flex-1 mb-0">
+                            <label id="pdfUploadBtn" class="file-upload-btn w-auto whitespace-nowrap hidden">
+                                <i class="fas fa-file-pdf"></i> Unggah PDF
+                                <input type="file" class="hidden" onchange="handleFileUpload(this)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <label class="text-xs uppercase font-bold text-gray-500 mb-2 mt-4 block">Pilih Ikon</label>
+                    <div id="iconGridContainer" class="max-h-32 overflow-y-auto mb-4 border border-gray-700 p-2 rounded">
+                        <!-- Icon Categories Generated via JS -->
+                    </div>
+                    <input type="hidden" id="selectedIcon" value="fas fa-laptop-code">
+
+                    <label class="text-xs uppercase font-bold text-gray-500 mb-2 block">Pilih Warna</label>
+                    <div class="color-swatches">
+                        <div class="swatch selected" style="background: #ffffff" onclick="selectColor('#ffffff', this)"></div>
+                        <div class="swatch" style="background: #3b82f6" onclick="selectColor('#3b82f6', this)"></div>
+                        <div class="swatch" style="background: #ef4444" onclick="selectColor('#ef4444', this)"></div>
+                        <div class="swatch" style="background: #22c55e" onclick="selectColor('#22c55e', this)"></div>
+                        <div class="swatch" style="background: #eab308" onclick="selectColor('#eab308', this)"></div>
+                        <div class="swatch" style="background: #a855f7" onclick="selectColor('#a855f7', this)"></div>
+                    </div>
+                    <input type="hidden" id="selectedColor" value="#ffffff">
+
+                    <div class="flex gap-2 mt-4">
+                        <button id="btnCancelEdit" onclick="cancelEdit()" class="hidden w-1/3 bg-gray-600 text-white py-3 rounded-lg font-bold uppercase text-xs hover:bg-gray-700 transition-colors">
+                            Batal
+                        </button>
+                        <button id="btnSaveItem" onclick="saveItem()" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold uppercase text-xs hover:bg-blue-700 transition-colors shadow-lg">
+                            <i class="fas fa-check mr-2"></i> Tambah Item
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Public Grid Modal -->
+    <div id="appModal" class="modal-overlay" onclick="closeModal('appModal')">
+        <div class="modal-content text-center" onclick="event.stopPropagation()">
+            <h2 id="modalTitle" class="text-xl font-black mb-6 tracking-widest text-brand uppercase">Pilihan</h2>
+            
+            <!-- GRID LAYOUT -->
+            <div id="publicAppList" class="grid-layout">
+                <!-- Public items generated by JS -->
+            </div>
+
+            <button onclick="closeModal('appModal')" class="mt-8 text-[10px] font-bold opacity-50 hover:opacity-100 uppercase tracking-widest border-b border-white/20 pb-1">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Confirm Modal (NEW) -->
+    <div id="confirmModal" class="modal-overlay" style="z-index: 200;">
+        <div class="modal-content text-center" style="max-width: 300px;">
+            <div class="mb-4 text-yellow-500 text-3xl"><i class="fas fa-exclamation-triangle"></i></div>
+            <h3 class="text-lg font-bold mb-2 uppercase tracking-widest text-white">Konfirmasi</h3>
+            <p class="text-xs text-gray-400 mb-6">Apakah Anda yakin ingin menghapus item ini secara permanen?</p>
+            <div class="flex gap-2 justify-center">
+                <button onclick="executeDelete()" class="bg-red-600 text-white px-4 py-2 rounded text-xs font-bold uppercase hover:bg-red-700 shadow-lg">Ya, Hapus</button>
+                <button onclick="closeModal('confirmModal')" class="bg-gray-600 text-white px-4 py-2 rounded text-xs font-bold uppercase hover:bg-gray-700">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal (NEW) -->
+    <div id="alertModal" class="modal-overlay" style="z-index: 210;">
+        <div class="modal-content text-center" style="max-width: 300px;">
+            <div id="alertIcon" class="mb-4 text-blue-500 text-3xl"><i class="fas fa-info-circle"></i></div>
+            <h3 id="alertTitle" class="text-lg font-bold mb-2 uppercase tracking-widest text-white">Info</h3>
+            <p id="alertMessage" class="text-xs text-gray-400 mb-6">Pesan...</p>
+            <button onclick="closeModal('alertModal')" class="bg-white text-black px-6 py-2 rounded-full text-xs font-bold uppercase hover:bg-gray-200">OK</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDU04V8KpMbBc28-bpP9PM_LQP06Kx9Cwk",
+            authDomain: "remedial-tracker.firebaseapp.com",
+            projectId: "remedial-tracker",
+            storageBucket: "remedial-tracker.firebasestorage.app",
+            messagingSenderId: "720679266176",
+            appId: "1:720679266176:web:883d93e8f0f4c55f9c4365",
+            measurementId: "G-3RPHN5YKE5"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- Global State ---
+        let appData = {
+            heroLine1: "SOLUSI DIGITAL",
+            heroLine2: "UNTUK GURU HEBAT",
+            heroSub: "Modernisasi lingkungan belajar melalui integrasi teknologi yang mudah dan efisien.",
+            apps: [
+                { id: 1, name: "Aplikasi", icon: "fas fa-th-large", type: "modal_apps", color: "#ffffff" },
+                { id: 2, name: "Materi", icon: "fas fa-book-open", type: "modal_materi", color: "#ffffff" },
+                { id: 3, name: "Video", icon: "fas fa-video", type: "link", url: "https://youtube.com/@mohdrizkkyy?si=70l_xrZIITbJvCru", color: "#ffffff" }
+            ],
+            subApps: [],
+            subMaterials: []
+        };
+
+        let currentAdminMode = 'apps'; 
+        let editingIndex = -1;
+        let pendingDeleteIndex = -1; // For delete modal
+
+        const iconGroups = {
+            "Umum": ["fas fa-laptop-code", "fas fa-clipboard-list", "fas fa-bell", "fas fa-calendar-alt", "fas fa-file-alt", "fas fa-download", "fas fa-folder-open", "fas fa-star"],
+            "Mata Pelajaran": ["fas fa-calculator", "fas fa-flask", "fas fa-globe-asia", "fas fa-language", "fas fa-palette", "fas fa-music", "fas fa-futbol", "fas fa-mosque", "fas fa-dna", "fas fa-atom", "fas fa-history"],
+            "Jenjang & Sekolah": ["fas fa-shapes", "fas fa-layer-group", "fas fa-graduation-cap", "fas fa-school", "fas fa-user-graduate", "fas fa-child", "fas fa-chalkboard-teacher"]
+        };
+
+        const initFirebase = async () => {
+            try {
+                await signInAnonymously(auth);
+                const docRef = doc(db, 'artifacts', 'remedial-tracker', 'public', 'data', 'portfolio_content', 'main');
+                
+                onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        appData.heroLine1 = data.heroLine1 || appData.heroLine1;
+                        appData.heroLine2 = data.heroLine2 || appData.heroLine2;
+                        appData.heroSub = data.heroSub || appData.heroSub;
+                        if(data.subApps) appData.subApps = data.subApps;
+                        if(data.subMaterials) appData.subMaterials = data.subMaterials;
+                        renderContent();
+                    } else {
+                        setDoc(docRef, appData);
+                    }
+                });
+            } catch (error) { console.error("Auth error:", error); }
+        };
+
+        // --- UI Functions ---
+        window.showAlert = function(title, message, isError = false) {
+            document.getElementById('alertTitle').innerText = title;
+            document.getElementById('alertMessage').innerText = message;
+            const icon = document.getElementById('alertIcon');
+            if (isError) {
+                icon.className = "mb-4 text-red-500 text-3xl";
+                icon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            } else {
+                icon.className = "mb-4 text-blue-500 text-3xl";
+                icon.innerHTML = '<i class="fas fa-info-circle"></i>';
+            }
+            document.getElementById('alertModal').style.display = 'flex';
+        };
+
+        window.openKeyModal = function() {
+            document.getElementById('keyModal').style.display = 'flex';
+            document.getElementById('accessKeyInput').value = '';
+            document.getElementById('keyError').classList.add('hidden');
+        };
+
+        window.openAboutModal = function() {
+            document.getElementById('aboutModal').style.display = 'flex';
+        };
+
+        window.validateKey = function() {
+            if (document.getElementById('accessKeyInput').value === '240799') {
+                closeModal('keyModal');
+                openDashModal();
+            } else {
+                document.getElementById('keyError').classList.remove('hidden');
+            }
+        };
+
+        window.openDashModal = function() {
+            renderAdminLists();
+            document.getElementById('dashModal').style.display = 'flex';
+        };
+
+        window.openPublicModal = function(type) {
+            const listContainer = document.getElementById('publicAppList');
+            const titleEl = document.getElementById('modalTitle');
+            listContainer.innerHTML = '';
+            
+            let items = [];
+            let isMateri = false;
+            
+            if (type === 'apps') {
+                items = appData.subApps;
+                titleEl.innerHTML = "APLIKASI PILIHAN";
+            } else {
+                items = appData.subMaterials;
+                titleEl.innerHTML = "MATERI PEMBELAJARAN";
+                isMateri = true;
+            }
+
+            items.forEach(item => {
+                const a = document.createElement('a');
+                a.href = item.url;
+                a.target = "_blank";
+                a.className = 'app-grid-item'; 
+                
+                let metaHtml = '';
+                if(isMateri && (item.category || item.level || item.grade)) {
+                    metaHtml = `<div class="item-tags">
+                        ${item.category ? `<span class="tag subject">${item.category}</span>` : ''}
+                        ${item.level ? `<span class="tag level">${item.level}</span>` : ''}
+                        ${item.grade ? `<span class="tag">${item.grade}</span>` : ''}
+                    </div>`;
+                }
+
+                a.innerHTML = `
+                    <i class="${item.icon}" style="color: ${item.color}"></i>
+                    <span class="item-title">${item.name}</span>
+                    ${metaHtml}
+                `;
+                listContainer.appendChild(a);
+            });
+
+            document.getElementById('appModal').style.display = 'flex';
+        };
+
+        window.closeModal = function(id) {
+            document.getElementById(id).style.display = 'none';
+        };
+
+        window.switchTab = function(tabId) {
+            document.getElementById('tab-hero').classList.add('hidden');
+            document.getElementById('tab-apps').classList.add('hidden');
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            const btnHero = document.getElementById('btn-tab-hero');
+            const btnApps = document.getElementById('btn-tab-apps');
+            if(tabId === 'tab-hero') {
+                btnHero.className = btnHero.className.replace('transparent text-gray-500', 'white text-white');
+                btnApps.className = btnApps.className.replace('white text-white', 'transparent text-gray-500');
+            } else {
+                btnApps.className = btnApps.className.replace('transparent text-gray-500', 'white text-white');
+                btnHero.className = btnHero.className.replace('white text-white', 'transparent text-gray-500');
+            }
+        };
+
+        window.setAdminMode = function(mode) {
+            currentAdminMode = mode;
+            window.cancelEdit(); 
+            const btnApps = document.getElementById('mode-apps');
+            const btnMateri = document.getElementById('mode-materi');
+            const label = document.getElementById('currentModeLabel');
+            const materiFields = document.getElementById('materiFields');
+            const pdfBtn = document.getElementById('pdfUploadBtn');
+
+            if(mode === 'apps') {
+                btnApps.className = "flex-1 py-2 text-xs font-bold rounded bg-blue-600 text-white uppercase transition-all";
+                btnMateri.className = "flex-1 py-2 text-xs font-bold rounded text-gray-400 uppercase transition-all hover:text-white";
+                label.innerText = "APLIKASI";
+                materiFields.classList.add('hidden');
+                pdfBtn.classList.add('hidden'); // Hide PDF Button
+                document.getElementById('newAppName').placeholder = "Nama Aplikasi";
+            } else {
+                btnMateri.className = "flex-1 py-2 text-xs font-bold rounded bg-green-600 text-white uppercase transition-all";
+                btnApps.className = "flex-1 py-2 text-xs font-bold rounded text-gray-400 uppercase transition-all hover:text-white";
+                label.innerText = "MATERI";
+                materiFields.classList.remove('hidden');
+                pdfBtn.classList.remove('hidden'); // Show PDF Button
+                document.getElementById('newAppName').placeholder = "Judul Materi";
+            }
+            renderAdminLists();
+        };
+
+        window.handleFileUpload = function(input) {
+            if(input.files && input.files[0]) {
+                const file = input.files[0];
+                window.showAlert("File Dipilih", "File '" + file.name + "' siap. (Demo Mode: Masukkan link GDrive untuk simpan permanen).");
+                document.getElementById('newAppUrl').value = "https://docs.google.com/viewer?url=" + file.name;
+            }
+        };
+
+        // --- CRUD Logic ---
+        window.saveHeroSettings = async function() {
+            const docRef = doc(db, 'artifacts', 'remedial-tracker', 'public', 'data', 'portfolio_content', 'main');
+            const newData = {
+                heroLine1: document.getElementById('editHeroLine1').value,
+                heroLine2: document.getElementById('editHeroLine2').value,
+                heroSub: document.getElementById('editHeroSub').value
+            };
+            try {
+                await setDoc(docRef, newData, { merge: true });
+                window.showAlert("Sukses", "Teks tampilan berhasil disimpan!");
+            } catch(e) { window.showAlert("Error", "Gagal menyimpan: " + e.message, true); }
+        };
+
+        window.saveItem = async function() {
+            const name = document.getElementById('newAppName').value;
+            const url = document.getElementById('newAppUrl').value;
+            if (!name || !url) return window.showAlert("Perhatian", "Mohon isi Nama dan URL!", true);
+
+            const icon = document.getElementById('selectedIcon').value;
+            const color = document.getElementById('selectedColor').value;
+            
+            const category = document.getElementById('newAppCategory').value;
+            const level = document.getElementById('newAppLevel').value;
+            const grade = document.getElementById('newAppClass').value;
+
+            let currentList = currentAdminMode === 'apps' ? [...appData.subApps] : [...appData.subMaterials];
+            
+            const newItem = {
+                id: editingIndex >= 0 ? currentList[editingIndex].id : Date.now(),
+                name, url, icon, color,
+                ...(currentAdminMode === 'materi' && { category, level, grade })
+            };
+
+            if (editingIndex >= 0) {
+                currentList[editingIndex] = newItem;
+            } else {
+                currentList.push(newItem);
+            }
+
+            let updatedData = {};
+            if (currentAdminMode === 'apps') updatedData = { subApps: currentList };
+            else updatedData = { subMaterials: currentList };
+            
+            try {
+                const docRef = doc(db, 'artifacts', 'remedial-tracker', 'public', 'data', 'portfolio_content', 'main');
+                await setDoc(docRef, updatedData, { merge: true });
+                window.cancelEdit(); 
+                window.showAlert("Sukses", "Item berhasil disimpan.");
+            } catch(e) { window.showAlert("Error", "Gagal menyimpan item: " + e.message, true); }
+        };
+
+        window.editItem = function(index) {
+            const list = currentAdminMode === 'apps' ? appData.subApps : appData.subMaterials;
+            const item = list[index];
+
+            document.getElementById('newAppName').value = item.name;
+            document.getElementById('newAppUrl').value = item.url;
+            window.selectIcon(item.icon, null); 
+            window.selectColor(item.color, null);
+
+            if(item.category) document.getElementById('newAppCategory').value = item.category;
+            if(item.level) document.getElementById('newAppLevel').value = item.level;
+            if(item.grade) document.getElementById('newAppClass').value = item.grade;
+
+            editingIndex = index;
+            document.getElementById('formTitle').innerText = "Edit Item";
+            document.getElementById('btnSaveItem').innerHTML = '<i class="fas fa-save mr-2"></i> Simpan Perubahan';
+            document.getElementById('btnCancelEdit').classList.remove('hidden');
+        };
+
+        window.cancelEdit = function() {
+            editingIndex = -1;
+            document.getElementById('newAppName').value = '';
+            document.getElementById('newAppUrl').value = '';
+            document.getElementById('newAppCategory').value = '';
+            document.getElementById('newAppLevel').value = '';
+            document.getElementById('newAppClass').value = '';
+            
+            document.getElementById('formTitle').innerText = "Tambah Item Baru";
+            document.getElementById('btnSaveItem').innerHTML = '<i class="fas fa-check mr-2"></i> Tambah Item';
+            document.getElementById('btnCancelEdit').classList.add('hidden');
+        };
+
+        // --- NEW DELETE LOGIC ---
+        window.initDelete = function(index) {
+            pendingDeleteIndex = index;
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        window.executeDelete = async function() {
+            if(pendingDeleteIndex === -1) return;
+            
+            let currentList = currentAdminMode === 'apps' ? [...appData.subApps] : [...appData.subMaterials];
+            currentList.splice(pendingDeleteIndex, 1);
+
+            let updatedData = {};
+            if (currentAdminMode === 'apps') updatedData = { subApps: currentList };
+            else updatedData = { subMaterials: currentList };
+
+            try {
+                const docRef = doc(db, 'artifacts', 'remedial-tracker', 'public', 'data', 'portfolio_content', 'main');
+                await setDoc(docRef, updatedData, { merge: true });
+                if(editingIndex === pendingDeleteIndex) window.cancelEdit();
+                closeModal('confirmModal');
+                window.showAlert("Dihapus", "Item telah dihapus.");
+            } catch(e) { 
+                closeModal('confirmModal');
+                window.showAlert("Error", "Gagal menghapus: " + e.message, true); 
+            }
+            pendingDeleteIndex = -1;
+        };
+
+        window.selectIcon = function(icon, el) {
+            document.getElementById('selectedIcon').value = icon;
+            document.querySelectorAll('.icon-option').forEach(e => e.classList.remove('selected'));
+            if(!el) {
+                const found = Array.from(document.querySelectorAll('.icon-option')).find(div => div.innerHTML.includes(icon));
+                if(found) found.classList.add('selected');
+            } else {
+                el.classList.add('selected');
+            }
+        };
+        window.selectColor = function(color, el) {
+            document.getElementById('selectedColor').value = color;
+            document.querySelectorAll('.swatch').forEach(e => e.classList.remove('selected'));
+            if(!el) { } else { el.classList.add('selected'); }
+        };
+
+        // --- Rendering ---
+        function renderContent() {
+            document.getElementById('heroTitleDisplay').innerHTML = `${appData.heroLine1}<br><span class='text-brand'>${appData.heroLine2}</span>`;
+            document.getElementById('heroSubDisplay').textContent = appData.heroSub;
+
+            const cardsContainer = document.getElementById('navCardsContainer');
+            cardsContainer.innerHTML = '';
+            
+            appData.apps.forEach(app => {
+                const card = document.createElement('div');
+                card.className = 'glass-card';
+                card.innerHTML = `
+                    <i class="${app.icon} text-xl mb-2" style="color: ${app.color}"></i>
+                    <span class="text-[9px] font-black tracking-[0.2em] uppercase">${app.name}</span>
+                `;
+                
+                if (app.type === 'modal_apps') card.onclick = () => window.openPublicModal('apps');
+                else if (app.type === 'modal_materi') card.onclick = () => window.openPublicModal('materi');
+                else card.onclick = () => window.open(app.url, '_blank');
+                
+                card.onmouseenter = function() { this.style.borderColor = app.color; };
+                card.onmouseleave = function() { this.style.borderColor = 'rgba(255, 255, 255, 0.2)'; };
+                cardsContainer.appendChild(card);
+            });
+
+            if(document.getElementById('dashModal').style.display === 'flex') renderAdminLists();
+        }
+
+        function renderAdminLists() {
+            document.getElementById('editHeroLine1').value = appData.heroLine1;
+            document.getElementById('editHeroLine2').value = appData.heroLine2;
+            document.getElementById('editHeroSub').value = appData.heroSub;
+
+            const listEl = document.getElementById('adminAppsList');
+            listEl.innerHTML = '';
+            
+            const activeList = currentAdminMode === 'apps' ? appData.subApps : appData.subMaterials;
+
+            if (activeList.length === 0) listEl.innerHTML = `<div class="text-gray-500 text-center text-xs py-4">Belum ada item.</div>`;
+
+            activeList.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-[#252525] p-3 rounded-lg border border-[#333] mb-2';
+                
+                let metaInfo = '';
+                if(currentAdminMode === 'materi' && (item.category || item.level)) {
+                    metaInfo = `<div class="text-[10px] text-blue-400">${item.category || '-'} | ${item.level || '-'}</div>`;
+                }
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded bg-[#1a1a1a] flex items-center justify-center border border-gray-700 shrink-0">
+                            <i class="${item.icon}" style="color: ${item.color}"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-bold text-white text-sm truncate">${item.name}</div>
+                            ${metaInfo}
+                            <div class="text-[10px] text-gray-500 truncate">${item.url}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editItem(${index})" class="text-blue-400 hover:text-blue-300 p-2"><i class="fas fa-pencil-alt"></i></button>
+                        <button onclick="initDelete(${index})" class="text-red-500 hover:text-red-300 p-2"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+        }
+
+        function renderIconGrid() {
+            const container = document.getElementById('iconGridContainer');
+            container.innerHTML = '';
+            
+            for (const [category, icons] of Object.entries(iconGroups)) {
+                const label = document.createElement('div');
+                label.className = 'icon-category-label';
+                label.innerText = category;
+                container.appendChild(label);
+
+                const grid = document.createElement('div');
+                grid.className = 'icon-grid';
+                icons.forEach(icon => {
+                    const div = document.createElement('div');
+                    div.className = `icon-option ${icon === 'fas fa-laptop-code' ? 'selected' : ''}`;
+                    div.innerHTML = `<i class="${icon}"></i>`;
+                    div.onclick = () => window.selectIcon(icon, div);
+                    grid.appendChild(div);
+                });
+                container.appendChild(grid);
+            }
+        }
+
+        initFirebase();
+        renderIconGrid();
+        renderContent();
+    </script>
+</body>
+</html>
