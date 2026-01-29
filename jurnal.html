@@ -65,6 +65,30 @@
             return '';
         };
 
+        // --- AUDIO HELPERS ---
+        window.playBeep = () => {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = 880; // Nada A5
+            gain.gain.value = 0.1;
+            osc.start();
+            setTimeout(() => osc.stop(), 150);
+        };
+
+        window.speakText = (text) => {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'id-ID';
+            utterance.rate = 1.0;
+            utterance.pitch = 0.8; // Pitch rendah agar terdengar seperti laki-laki
+            window.speechSynthesis.speak(utterance);
+        };
+
         // --- 2. GLOBAL STATE ---
         window.appState = {
             currentView: 'dashboard',
@@ -76,7 +100,8 @@
             isScannerStarting: false,
             loginError: '',
             settings: { 
-                nama_guru: '', nip_guru: '', nama_sekolah: '', nama_kepsek: '', nip_kepsek: '', lokasi: '', semester: '1', tahun_ajaran: '2024/2025', kelas_diampu: [] 
+                nama_guru: '', nip_guru: '', nama_sekolah: '', nama_kepsek: '', nip_kepsek: '', lokasi: '', semester: '1', tahun_ajaran: '2024/2025', kelas_diampu: [], 
+                voiceMode: 'mute' // Default 'mute', 'beep', 'tts'
             },
             students: [],
             journals: [],
@@ -98,7 +123,6 @@
             populationExpanded: false,
             scannerActive: false,
             html5QrCode: null,
-            // --- UPDATE: Default kamera depan ('user') ---
             cameraFacingMode: "user", 
             modal: { show: false, title: '', message: '', onConfirm: null },
             qrModal: { show: false, student: null },
@@ -146,7 +170,7 @@
             
             onSnapshot(profileRef, (snap) => { 
                 if (snap.exists()) { 
-                    window.appState.settings = snap.data(); 
+                    window.appState.settings = { ...window.appState.settings, ...snap.data() }; 
                     if (!window.appState.selectedKelas && window.appState.settings.kelas_diampu?.length > 0) {
                         window.appState.selectedKelas = window.appState.settings.kelas_diampu[0];
                     } else if (!window.appState.selectedKelas) {
@@ -376,6 +400,7 @@
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData.entries()); 
             data.kelas_diampu = formData.getAll('kelas_diampu');
+            // Save settings including voiceMode
             await setDoc(doc(db, 'artifacts', appId, 'users', window.appState.teacherId, 'settings', 'profile'), data); 
             window.showNotif("Profil Disimpan"); 
         };
@@ -535,6 +560,14 @@
                                 window.appState.scanSuccessPopup = { show: true, studentName: student.nama_siswa };
                                 window.renderApp();
 
+                                // --- SOUND LOGIC ---
+                                const mode = window.appState.settings.voiceMode || 'mute';
+                                if (mode === 'tts') {
+                                    window.speakText(`${student.nama_siswa} Hadir`);
+                                } else if (mode === 'beep') {
+                                    window.playBeep();
+                                }
+                                
                                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                                 
                                 await window.appState.html5QrCode.stop();
@@ -822,7 +855,17 @@
             window.appState.mobileMenuOpen = false; 
             window.renderApp(); 
             lucide.createIcons();
-            if (v === 'scanner') setTimeout(() => { if (document.getElementById('reader')) window.startScanner(); }, 500);
+            if (v === 'scanner') {
+                setTimeout(() => { if (document.getElementById('reader')) window.startScanner(); }, 500);
+
+                // --- TRIGGER VOICE ON SCANNER ENTRY ---
+                const mode = window.appState.settings.voiceMode || 'mute';
+                if (mode === 'tts') {
+                    // Slight delay to ensure UI is ready
+                    setTimeout(() => window.speakText("Sistem presensi sudah siap, silakan pindai sekarang!"), 800);
+                }
+            }
+
             if (v === 'dashboard') setTimeout(() => window.initChart(), 500);
             if (window.appState.lastFocusedId) {
                 setTimeout(() => {
@@ -1268,7 +1311,36 @@
 
             if (v === 'holidays') return `<div class="max-w-xl mx-auto animate-fadeIn text-left text-left text-left"><div class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 border shadow-sm mb-8 text-left text-left text-left"><h4 class="font-black text-xl uppercase mb-6 leading-none text-slate-800 text-left text-left">Hari Libur</h4><form onsubmit="window.handleSaveHoliday(event)" class="space-y-4 text-left"><input type="date" name="tanggal" required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><input type="text" name="keterangan" placeholder="Keterangan..." required class="w-full bg-slate-50 rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan</button></form></div><div class="space-y-2 pb-10 text-left text-left">${window.appState.holidays.map(h => `<div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-left text-left text-left"><div><p class="font-black text-xs text-slate-800 leading-none mb-1 text-left text-left">${h.tanggal}</p><p class="text-[10px] text-slate-400 font-bold uppercase leading-none text-left text-left">${h.keterangan}</p></div><button onclick="window.deleteDocData('holidays', '${h.id}')" class="text-rose-400 p-2 hover:bg-rose-50 rounded-lg transition-all text-center text-center"><i class="fa-solid fa-trash-can text-center"></i></button></div>`).join('')}</div></div>`;
             
-            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn space-y-8 pb-10 text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 border shadow-sm space-y-6 text-left"><h4 class="font-black text-xl uppercase mb-4 leading-none text-slate-800 text-left">Profil Guru</h4><div class="space-y-4 text-left"><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div class="space-y-2 border-t pt-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left">KLS ${k}</span></label>`).join('')}</div></div></div><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Profil</button></form><div class="bg-amber-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-amber-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-amber-700 leading-none text-left">Pemeliharaan Data</h4><div class="space-y-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Reset Presensi per Bulan</label><div class="flex gap-3 text-left"><input type="month" id="reset-month-picker" class="flex-grow bg-white rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button onclick="window.handleResetAttendance()" class="bg-amber-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest text-center transition-all hover:bg-amber-700"><i class="fa-solid fa-rotate-right mr-2"></i> Reset Bulan</button></div></div></div><div class="bg-rose-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-rose-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center"><i class="fa-solid fa-stairs mr-2"></i> Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center transition-all hover:bg-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Bersihkan Database</button></div></div></div>`;
+            if (v === 'settings') return `<div class="max-w-xl mx-auto animate-fadeIn space-y-8 pb-10 text-left"><form onsubmit="window.handleSaveSettings(event)" class="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 border shadow-sm space-y-6 text-left"><h4 class="font-black text-xl uppercase mb-4 leading-none text-slate-800 text-left">Profil Guru</h4><div class="space-y-4 text-left"><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Sekolah</label><input type="text" name="nama_sekolah" value="${window.appState.settings.nama_sekolah || ''}" placeholder="Sekolah" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Lokasi/Kota</label><input type="text" name="lokasi" value="${window.appState.settings.lokasi || ''}" placeholder="Jakarta" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">Wali Kelas</label><input type="text" name="nama_guru" value="${window.appState.settings.nama_guru || ''}" placeholder="Wali Kelas" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left">NIP</label><input type="text" name="nip_guru" value="${window.appState.settings.nip_guru || ''}" placeholder="NIP" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="grid grid-cols-2 gap-4 text-left"><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Tahun Pelajaran</label><input type="text" name="tahun_ajaran" value="${window.appState.settings.tahun_ajaran || ''}" placeholder="2024/2025" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">Kepala Sekolah</label><input type="text" name="nama_kepsek" value="${window.appState.settings.nama_kepsek || ''}" placeholder="Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div></div><div class="text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase text-left text-left">NIP Kepsek</label><input type="text" name="nip_kepsek" value="${window.appState.settings.nip_kepsek || ''}" placeholder="NIP Kepsek" class="w-full bg-slate-50 rounded-xl p-4 font-black outline-none text-xs text-left"></div><div class="space-y-2 border-t pt-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Kelas yang Diampu</label><div class="flex flex-wrap gap-3 text-left">${[1,2,3,4,5,6].map(k => `<label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl cursor-pointer border hover:border-blue-200 transition-all text-left"><input type="checkbox" name="kelas_diampu" value="${k}" ${diampu.includes(String(k)) ? 'checked' : ''} class="w-4 h-4"><span class="text-[10px] font-black text-left text-left">KLS ${k}</span></label>`).join('')}</div></div></div>
+            
+            <div class="space-y-4 pt-4 border-t text-left">
+                <label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Pengaturan Suara</label>
+                <div class="grid grid-cols-3 gap-3">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="voiceMode" value="mute" ${window.appState.settings.voiceMode === 'mute' ? 'checked' : ''} class="peer sr-only">
+                        <div class="bg-slate-50 border-2 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-50 rounded-xl p-4 text-center transition-all">
+                            <i class="fa-solid fa-volume-xmark text-lg mb-1 text-slate-400 peer-checked:text-blue-600"></i>
+                            <p class="text-[9px] font-black uppercase text-slate-600 peer-checked:text-blue-600">Mati</p>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="voiceMode" value="beep" ${window.appState.settings.voiceMode === 'beep' ? 'checked' : ''} class="peer sr-only">
+                        <div class="bg-slate-50 border-2 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-50 rounded-xl p-4 text-center transition-all">
+                            <i class="fa-solid fa-volume-low text-lg mb-1 text-slate-400 peer-checked:text-blue-600"></i>
+                            <p class="text-[9px] font-black uppercase text-slate-600 peer-checked:text-blue-600">Nada</p>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="voiceMode" value="tts" ${window.appState.settings.voiceMode === 'tts' ? 'checked' : ''} class="peer sr-only">
+                        <div class="bg-slate-50 border-2 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-50 rounded-xl p-4 text-center transition-all">
+                            <i class="fa-solid fa-volume-high text-lg mb-1 text-slate-400 peer-checked:text-blue-600"></i>
+                            <p class="text-[9px] font-black uppercase text-slate-600 peer-checked:text-blue-600">Suara</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Profil</button></form><div class="bg-amber-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-amber-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-amber-700 leading-none text-left">Pemeliharaan Data</h4><div class="space-y-4 text-left"><label class="text-[9px] font-black text-slate-400 ml-2 uppercase block text-left">Reset Presensi per Bulan</label><div class="flex gap-3 text-left"><input type="month" id="reset-month-picker" class="flex-grow bg-white rounded-xl p-4 font-black border-none outline-none text-xs text-left"><button onclick="window.handleResetAttendance()" class="bg-amber-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest text-center transition-all hover:bg-amber-700"><i class="fa-solid fa-rotate-right mr-2"></i> Reset Bulan</button></div></div></div><div class="bg-rose-50 p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-rose-100 space-y-6 text-left"><h4 class="font-black text-xl uppercase text-rose-600 leading-none text-left">Area Berbahaya</h4><div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left"><button onclick="window.handlePromotion()" class="bg-white text-rose-600 border border-rose-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all text-center"><i class="fa-solid fa-stairs mr-2"></i> Naik Kelas</button><button onclick="window.handleClearData()" class="bg-rose-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl text-center transition-all hover:bg-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Bersihkan Database</button></div></div></div>`;
 
             if (v === 'scanner') {
                 // LOGIKA MIRRORING: Default mirror untuk Desktop (biasanya webcam depan) & Kamera Depan HP
@@ -1425,4 +1497,3 @@
     <div id="notif-anchor" class="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex flex-col items-center gap-2 w-full max-w-xs px-6"></div>
 </body>
 </html>
-
