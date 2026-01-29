@@ -82,7 +82,8 @@
         window.speakText = (text) => {
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
+            // UPDATE: Gunakan toLowerCase() agar TTS membaca kata secara utuh, bukan mengeja huruf kapital
+            const utterance = new SpeechSynthesisUtterance(text.toLowerCase());
             utterance.lang = 'id-ID';
             utterance.rate = 1.0;
             utterance.pitch = 0.8; // Pitch rendah agar terdengar seperti laki-laki
