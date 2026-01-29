@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>REEZAPPS - Portofolio Digital Guru</title>
+    <title>REEZAPPS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- OPTIMASI: Preload Gambar -->
-    <link rel="preload" as="image" href="https://i.imgur.com/BlIQzdZ.png">
-    <link rel="preload" as="image" href="https://i.imgur.com/BDai7er.png">
+    <!-- 👇👇👇 GANTI LINK PRELOAD DI BAWAH INI 👇👇👇 -->
+    <link rel="preload" as="image" href="https://i.imgur.com/EviBLs4.png">
+    <link rel="preload" as="image" href="https://i.imgur.com/RiaM5tI.png">
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -32,23 +33,27 @@
         /* Background System */
         .bg-wrapper {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2;
+            background-color: #050505; /* Deep black backing */
         }
         .bg-fallback {
             position: absolute; inset: 0;
             background-image: url('https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=60&w=1080');
             background-size: cover; background-position: center;
-            filter: blur(4px) brightness(0.5);
+            filter: blur(20px) brightness(0.4); /* Increased blur */
+            transform: scale(1.1); /* Scale to hide blur edges */
         }
         .bg-main {
             position: absolute; inset: 0;
             width: 100%; height: 100%; object-fit: cover;
             opacity: 0; transition: opacity 1.5s ease-in-out;
-            filter: blur(8px) brightness(0.6);
-            transform: scale(1.05);
+            filter: blur(30px) brightness(0.45) saturate(1.2); /* Pro Soft Blur Effect */
+            transform: scale(1.1); /* Prevent blur edges */
         }
         .bg-overlay {
             position: absolute; inset: 0;
-            background: linear-gradient(to right, rgba(0,0,0,0.8) 10%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%);
+            /* Professional vignette effect */
+            background: radial-gradient(circle at 30% 50%, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
+            pointer-events: none;
         }
 
         /* UI Elements */
@@ -89,17 +94,34 @@
         }
         .character-img { height: 100%; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,0.5)); }
 
+        /* --- UPDATED: Elegant Glassmorphism Modal --- */
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.65); /* Darker backdrop for contrast */
+            backdrop-filter: blur(8px); /* Blur content behind modal */
             z-index: 100; justify-content: center; align-items: center;
+            transition: all 0.3s ease;
         }
         .modal-content {
-            background: #1a1a1a; border: 1px solid #333; padding: 2rem; border-radius: 20px;
+            /* Elegant Glass Background */
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px); /* Safari support */
+            
+            /* Glass Borders & Shadow */
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-top: 1px solid rgba(255, 255, 255, 0.3); /* Top highlight */
+            border-left: 1px solid rgba(255, 255, 255, 0.3); /* Left highlight */
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            
+            padding: 2.5rem; 
+            border-radius: 24px;
             width: 90%; max-width: 650px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             max-height: 90vh; overflow-y: auto;
+            color: white;
+            position: relative;
         }
+        /* --- End Modal Styles --- */
 
         /* Grid Layout Modern */
         .grid-layout {
@@ -115,7 +137,8 @@
             position: relative; overflow: hidden; cursor: pointer;
         }
         .app-grid-item:hover {
-            background: rgba(255, 255, 255, 0.12); transform: translateY(-3px); border-color: rgba(255,255,255,0.3);
+            background: rgba(255, 255, 255, 0.15); transform: translateY(-3px); 
+            border-color: rgba(255,255,255,0.4); box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
         .app-grid-item i { font-size: 1.5rem; margin-bottom: 0.5rem; }
         .app-grid-item .item-title { font-size: 0.8rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.5rem; }
@@ -134,35 +157,35 @@
         .admin-trigger:hover { opacity: 1; }
 
         input, select, textarea {
-            width: 100%; background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px;
+            width: 100%; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; font-size: 13px;
         }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: white; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(255,255,255,0.5); background: rgba(0, 0, 0, 0.5); }
         
-        .icon-category-label { font-size: 0.7rem; color: #888; text-transform: uppercase; font-weight: bold; margin-top: 10px; margin-bottom: 5px; display: block; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .icon-category-label { font-size: 0.7rem; color: #ccc; text-transform: uppercase; font-weight: bold; margin-top: 10px; margin-bottom: 5px; display: block; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 2px; }
         .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 5px; }
         .icon-option {
             aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-            background: #2a2a2a; border: 1px solid #444; border-radius: 8px;
-            cursor: pointer; transition: 0.2s; color: #888;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+            cursor: pointer; transition: 0.2s; color: #aaa;
         }
-        .icon-option:hover { background: #333; color: white; }
-        .icon-option.selected { background: white; color: black; border-color: white; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
+        .icon-option:hover { background: rgba(255,255,255,0.2); color: white; }
+        .icon-option.selected { background: white; color: black; border-color: white; box-shadow: 0 0 15px rgba(255,255,255,0.4); }
 
         .color-swatches { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
         .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: 0.2s; }
         .swatch:hover { transform: scale(1.1); }
-        .swatch.selected { border-color: white; box-shadow: 0 0 0 2px #1a1a1a; }
+        .swatch.selected { border-color: white; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
 
         .file-upload-btn {
             display: flex; align-items: center; justify-content: center; gap: 8px;
-            width: 100%; padding: 10px; background: #333; border: 1px dashed #666;
+            width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px dashed rgba(255,255,255,0.3);
             color: #ccc; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 12px;
         }
-        .file-upload-btn:hover { background: #444; border-color: #fff; color: #fff; }
+        .file-upload-btn:hover { background: rgba(255,255,255,0.1); border-color: #fff; color: #fff; }
 
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1a1a1a; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
     </style>
 </head>
 <body class="flex flex-col">
@@ -170,7 +193,12 @@
     <!-- Background System -->
     <div class="bg-wrapper">
         <div class="bg-fallback"></div>
-        <img src="https://i.imgur.com/BlIQzdZ.png" class="bg-main" onload="this.style.opacity=1" onerror="console.log('Imgur failed, using fallback')">
+        
+        <!-- ================================================================================== -->
+        <!--  👇👇👇 GANTI LINK BACKGROUND DI BAWAH INI (PASTIKAN LINK GAMBAR LANGSUNG) 👇👇👇  -->
+        <!-- ================================================================================== -->
+        <img src="https://i.imgur.com/EviBLs4.png" class="bg-main" onload="this.style.opacity=1" onerror="console.log('Imgur failed, using fallback')">
+        
         <div class="bg-overlay"></div>
     </div>
 
@@ -207,7 +235,7 @@
         </div>
 
         <div class="character-container">
-            <img src="https://i.imgur.com/BDai7er.png" alt="Profil Guru" class="character-img" fetchpriority="high">
+            <img src="https://i.imgur.com/RiaM5tI.png" alt="Profil Guru" class="character-img" fetchpriority="high">
         </div>
 
         <div class="absolute bottom-10 left-[8%] flex gap-6 opacity-80">
@@ -216,8 +244,8 @@
             <a href="https://youtube.com/@mohdrizkkyy?si=70l_xrZIITbJvCru" target="_blank" class="hover:text-white transition-colors"><i class="fab fa-youtube text-xl"></i></a>
         </div>
         
-        <div class="absolute bottom-10 right-[8%] text-[9px] font-bold opacity-30 tracking-[0.3em] uppercase hidden md:block">
-            REEZAPPS PORTFOLIO © 2024
+        <div class="absolute bottom-10 w-full text-center left-0 text-[9px] font-bold opacity-30 tracking-[0.3em] uppercase hidden md:block pointer-events-none">
+            REEZAPPS © 2026
         </div>
     </main>
 
@@ -232,7 +260,7 @@
             
             <div class="flex flex-col md:flex-row gap-8 items-center md:items-start">
                 <div class="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 border-white/20 shrink-0">
-                    <img src="https://i.imgur.com/BDai7er.png" class="w-full h-full object-cover bg-gray-800">
+                    <img src="https://i.imgur.com/RiaM5tI.png" class="w-full h-full object-cover bg-gray-800">
                 </div>
                 <div>
                     <h2 class="text-2xl font-black mb-2 text-white uppercase tracking-tight">Mohamad Rizki, S.Pd., Gr.</h2>
