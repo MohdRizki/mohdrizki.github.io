@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>REEZAPPS</title>
+    <title>REEZAPPS - Portofolio Digital Guru</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- OPTIMASI: Preload Gambar -->
-    <!-- 👇👇👇 GANTI LINK PRELOAD DI BAWAH INI 👇👇👇 -->
-    <link rel="preload" as="image" href="https://i.imgur.com/EviBLs4.png">
-    <link rel="preload" as="image" href="https://i.imgur.com/RiaM5tI.png">
+    <link rel="preload" as="image" href="https://i.imgur.com/jqegLVw.jpeg">
+    <link rel="preload" as="image" href="https://i.imgur.com/KstD1Q9.jpeg">
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -25,43 +24,88 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #111;
+            background-color: transparent; 
             font-family: 'Inter', sans-serif;
             color: white;
         }
 
         /* Background System */
         .bg-wrapper {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2;
-            background-color: #050505; /* Deep black backing */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: -1; 
+            background-color: #050505; 
         }
         .bg-fallback {
             position: absolute; inset: 0;
             background-image: url('https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=60&w=1080');
             background-size: cover; background-position: center;
-            filter: blur(20px) brightness(0.4); /* Increased blur */
-            transform: scale(1.1); /* Scale to hide blur edges */
+            filter: blur(20px) brightness(0.4); 
+            transform: scale(1.1);
         }
         .bg-main {
             position: absolute; inset: 0;
             width: 100%; height: 100%; object-fit: cover;
             opacity: 0; transition: opacity 1.5s ease-in-out;
-            filter: blur(30px) brightness(0.45) saturate(1.2); /* Pro Soft Blur Effect */
-            transform: scale(1.1); /* Prevent blur edges */
+            filter: blur(4px) brightness(0.6) saturate(1.1); 
+            transform: scale(1.05);
         }
         .bg-overlay {
             position: absolute; inset: 0;
-            /* Professional vignette effect */
-            background: radial-gradient(circle at 30% 50%, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
+            background: radial-gradient(circle at 30% 50%, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.6) 100%);
             pointer-events: none;
         }
 
         /* UI Elements */
         .btn-glow { position: relative; z-index: 1; }
-        .btn-glow::after {
-            content: ''; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%); width: 150%; height: 150%;
-            background: radial-gradient(circle, var(--brand-glow) 0%, rgba(0,0,0,0) 70%); z-index: -1;
+        
+        /* Tombol Ayo Mulai Animasi */
+        @keyframes subtle-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); transform: scale(1); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); transform: scale(1.02); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); transform: scale(1); }
+        }
+
+        .start-btn {
+            background: white;
+            color: black;
+            font-size: 11px;
+            font-weight: 900;
+            padding: 16px 48px;
+            border-radius: 9999px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 25px -5px rgba(255, 255, 255, 0.3);
+            animation: subtle-pulse 3s infinite;
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            border: 2px solid transparent;
+        }
+
+        .start-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(255,255,255,0.6), transparent);
+            transition: all 0.5s;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 20px 40px -5px rgba(255, 255, 255, 0.5);
+            background-color: #f8fafc;
+            border-color: rgba(255,255,255,0.8);
+            letter-spacing: 0.25em; 
+        }
+
+        .start-btn:hover::before {
+            left: 100%;
+        }
+
+        .start-btn:active {
+            transform: translateY(-1px) scale(0.98);
         }
 
         .glass-card {
@@ -88,40 +132,52 @@
         .nav-item.active { border-bottom: 2px solid var(--brand-color); padding-bottom: 2px; }
 
         .character-container {
-            position: absolute; right: 0%; bottom: -220px; 
-            height: 115vh; display: flex; align-items: flex-end;
-            pointer-events: none; z-index: 5;
+            position: absolute;
+            pointer-events: none;
+            z-index: 5;
+            /* MOBILE DEFAULT (Optimized) */
+            right: -25%; 
+            bottom: 0;
+            height: 60vh;
+            opacity: 0.8; /* Sedikit transparan di HP agar teks terbaca */
+            display: flex; 
+            align-items: flex-end;
+            transition: all 0.5s ease;
         }
+        
+        /* DESKTOP VIEW (Maintain Original Layout) */
+        @media (min-width: 768px) {
+            .character-container {
+                right: 0%;
+                bottom: -220px;
+                height: 115vh;
+                opacity: 1;
+            }
+        }
+
         .character-img { height: 100%; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,0.5)); }
 
-        /* --- UPDATED: Elegant Glassmorphism Modal --- */
+        /* --- Elegant Glassmorphism Modal --- */
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.65); /* Darker backdrop for contrast */
-            backdrop-filter: blur(8px); /* Blur content behind modal */
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
             z-index: 100; justify-content: center; align-items: center;
             transition: all 0.3s ease;
         }
         .modal-content {
-            /* Elegant Glass Background */
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
             backdrop-filter: blur(40px);
-            -webkit-backdrop-filter: blur(40px); /* Safari support */
-            
-            /* Glass Borders & Shadow */
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255, 255, 255, 0.18);
-            border-top: 1px solid rgba(255, 255, 255, 0.3); /* Top highlight */
-            border-left: 1px solid rgba(255, 255, 255, 0.3); /* Left highlight */
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-            
-            padding: 2.5rem; 
-            border-radius: 24px;
+            padding: 2.5rem; border-radius: 24px;
             width: 90%; max-width: 650px;
             max-height: 90vh; overflow-y: auto;
-            color: white;
-            position: relative;
+            color: white; position: relative;
         }
-        /* --- End Modal Styles --- */
 
         /* Grid Layout Modern */
         .grid-layout {
@@ -141,10 +197,15 @@
             border-color: rgba(255,255,255,0.4); box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
         .app-grid-item i { font-size: 1.5rem; margin-bottom: 0.5rem; }
-        .app-grid-item .item-title { font-size: 0.8rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.5rem; }
+        .app-grid-item .item-title { font-size: 0.8rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.2rem; }
+        .app-grid-item .item-desc {
+            font-size: 0.65rem; color: #bbb; line-height: 1.2; margin-bottom: 0.5rem;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+            font-weight: 400; opacity: 0.8;
+        }
         
-        /* Badges for Subject, Level, Class */
-        .item-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; width: 100%; margin-top: 4px; }
+        /* Badges */
+        .item-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; width: 100%; margin-top: auto; }
         .tag {
             font-size: 9px; padding: 2px 6px; border-radius: 4px;
             background: rgba(255,255,255,0.1); color: #aaa; text-transform: uppercase; font-weight: 600;
@@ -172,9 +233,18 @@
         .icon-option.selected { background: white; color: black; border-color: white; box-shadow: 0 0 15px rgba(255,255,255,0.4); }
 
         .color-swatches { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
-        .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: 0.2s; }
+        .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden; }
         .swatch:hover { transform: scale(1.1); }
         .swatch.selected { border-color: white; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
+        
+        /* Custom Color Picker Helper */
+        .color-picker-wrapper {
+            background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .color-picker-wrapper input[type="color"] {
+            position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; padding: 0; margin: 0; opacity: 0; cursor: pointer;
+        }
 
         .file-upload-btn {
             display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -182,6 +252,14 @@
             color: #ccc; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 12px;
         }
         .file-upload-btn:hover { background: rgba(255,255,255,0.1); border-color: #fff; color: #fff; }
+
+        /* Cursor Effect for Typing */
+        #heroSubDisplay::after {
+            content: '|';
+            animation: blink 1s step-start infinite;
+            color: var(--brand-glow);
+        }
+        @keyframes blink { 50% { opacity: 0; } }
 
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
@@ -193,12 +271,10 @@
     <!-- Background System -->
     <div class="bg-wrapper">
         <div class="bg-fallback"></div>
-        
-        <!-- ================================================================================== -->
-        <!--  👇👇👇 GANTI LINK BACKGROUND DI BAWAH INI (PASTIKAN LINK GAMBAR LANGSUNG) 👇👇👇  -->
-        <!-- ================================================================================== -->
-        <img src="https://i.imgur.com/EviBLs4.png" class="bg-main" onload="this.style.opacity=1" onerror="console.log('Imgur failed, using fallback')">
-        
+        <img src="https://i.imgur.com/jqegLVw.jpeg" 
+             class="bg-main" 
+             onload="this.style.opacity='1'" 
+             onerror="this.src='https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=60&w=1080'; this.style.opacity='1';">
         <div class="bg-overlay"></div>
     </div>
 
@@ -207,10 +283,17 @@
             <img src="https://i.imgur.com/Mw1UViI.png" alt="REEZAPPS Logo" class="h-10 w-auto object-contain">
             <div class="text-xl font-black tracking-tighter uppercase">REEZ<span class="text-brand">APPS</span></div>
         </div>
+        
+        <!-- DESKTOP NAV -->
         <nav class="hidden md:flex gap-10">
             <a href="#" class="nav-item active">HOME</a>
             <span onclick="openAboutModal()" class="nav-item">TENTANG SAYA</span>
         </nav>
+
+        <!-- MOBILE NAV TRIGGER -->
+        <button onclick="openAboutModal()" class="md:hidden text-white text-xl p-2 opacity-80 hover:opacity-100">
+            <i class="fas fa-bars"></i>
+        </button>
     </header>
 
     <main class="relative h-screen flex items-center px-[8%] overflow-hidden">
@@ -218,13 +301,12 @@
             <h1 id="heroTitleDisplay" class="text-4xl md:text-5xl font-black leading-[1.1] mb-4 tracking-tight uppercase">
                 LOADING...
             </h1>
-            <p id="heroSubDisplay" class="text-base opacity-90 mb-8 font-medium leading-relaxed max-w-md text-gray-100">
-                <!-- Content via Firebase -->
+            <p id="heroSubDisplay" class="text-base opacity-90 mb-8 font-medium leading-relaxed max-w-md text-gray-100 min-h-[3em]">
+                <!-- Content via Firebase & Typing Effect -->
             </p>
 
             <div class="btn-glow inline-block mb-12">
-                <!-- Direct Link to Apps Menu -->
-                <button onclick="window.openPublicModal('apps')" class="bg-white text-black text-[11px] font-black px-12 py-4 rounded-full tracking-[0.2em] uppercase hover:bg-gray-200 transition-all shadow-xl">
+                <button onclick="window.openPublicModal('apps')" class="start-btn">
                     AYO MULAI
                 </button>
             </div>
@@ -260,7 +342,8 @@
             
             <div class="flex flex-col md:flex-row gap-8 items-center md:items-start">
                 <div class="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 border-white/20 shrink-0">
-                    <img src="https://i.imgur.com/RiaM5tI.png" class="w-full h-full object-cover bg-gray-800">
+                    <!-- UPDATED: Profile Picture -->
+                    <img src="https://i.imgur.com/KstD1Q9.jpeg" class="w-full h-full object-cover bg-gray-800">
                 </div>
                 <div>
                     <h2 class="text-2xl font-black mb-2 text-white uppercase tracking-tight">Mohamad Rizki, S.Pd., Gr.</h2>
@@ -359,6 +442,9 @@
                     <div class="mb-4">
                         <input type="text" id="newAppName" placeholder="Judul / Nama Materi" class="mb-2">
                         
+                        <!-- NEW: Description Input -->
+                        <input type="text" id="newAppDesc" placeholder="Deskripsi Singkat (Opsional)" class="mb-2">
+
                         <!-- Extra Fields for Materia -->
                         <div id="materiFields" class="hidden grid grid-cols-3 gap-2 mb-2">
                             <select id="newAppCategory">
@@ -408,12 +494,19 @@
 
                     <label class="text-xs uppercase font-bold text-gray-500 mb-2 block">Pilih Warna</label>
                     <div class="color-swatches">
+                        <!-- PRESETS -->
                         <div class="swatch selected" style="background: #ffffff" onclick="selectColor('#ffffff', this)"></div>
                         <div class="swatch" style="background: #3b82f6" onclick="selectColor('#3b82f6', this)"></div>
                         <div class="swatch" style="background: #ef4444" onclick="selectColor('#ef4444', this)"></div>
                         <div class="swatch" style="background: #22c55e" onclick="selectColor('#22c55e', this)"></div>
                         <div class="swatch" style="background: #eab308" onclick="selectColor('#eab308', this)"></div>
                         <div class="swatch" style="background: #a855f7" onclick="selectColor('#a855f7', this)"></div>
+                        
+                        <!-- FULL CUSTOM PICKER -->
+                        <div class="swatch color-picker-wrapper" title="Warna Custom">
+                            <i class="fas fa-plus text-xs text-white mix-blend-difference pointer-events-none"></i>
+                            <input type="color" oninput="selectColor(this.value, this.parentElement)" onchange="selectColor(this.value, this.parentElement)">
+                        </div>
                     </div>
                     <input type="hidden" id="selectedColor" value="#ffffff">
 
@@ -433,14 +526,19 @@
     <!-- Public Grid Modal -->
     <div id="appModal" class="modal-overlay" onclick="closeModal('appModal')">
         <div class="modal-content text-center" onclick="event.stopPropagation()">
+            <!-- NEW: Top-Right Close Button -->
+            <button onclick="closeModal('appModal')" class="absolute top-6 right-6 text-gray-400 hover:text-white transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+
             <h2 id="modalTitle" class="text-xl font-black mb-6 tracking-widest text-brand uppercase">Pilihan</h2>
             
             <!-- GRID LAYOUT -->
             <div id="publicAppList" class="grid-layout">
                 <!-- Public items generated by JS -->
             </div>
-
-            <button onclick="closeModal('appModal')" class="mt-8 text-[10px] font-bold opacity-50 hover:opacity-100 uppercase tracking-widest border-b border-white/20 pb-1">Tutup</button>
+            
+            <!-- REMOVED: Bottom Close Button -->
         </div>
     </div>
 
@@ -505,11 +603,36 @@
         let currentAdminMode = 'apps'; 
         let editingIndex = -1;
         let pendingDeleteIndex = -1; // For delete modal
+        let typingTimeout; // Global var for typing
 
+        // UPDATED: Expanded Icon Groups
         const iconGroups = {
-            "Umum": ["fas fa-laptop-code", "fas fa-clipboard-list", "fas fa-bell", "fas fa-calendar-alt", "fas fa-file-alt", "fas fa-download", "fas fa-folder-open", "fas fa-star"],
-            "Mata Pelajaran": ["fas fa-calculator", "fas fa-flask", "fas fa-globe-asia", "fas fa-language", "fas fa-palette", "fas fa-music", "fas fa-futbol", "fas fa-mosque", "fas fa-dna", "fas fa-atom", "fas fa-history"],
-            "Jenjang & Sekolah": ["fas fa-shapes", "fas fa-layer-group", "fas fa-graduation-cap", "fas fa-school", "fas fa-user-graduate", "fas fa-child", "fas fa-chalkboard-teacher"]
+            "Umum": [
+                "fas fa-laptop-code", "fas fa-clipboard-list", "fas fa-bell", "fas fa-calendar-alt", 
+                "fas fa-file-alt", "fas fa-download", "fas fa-folder-open", "fas fa-star",
+                "fas fa-home", "fas fa-search", "fas fa-envelope", "fas fa-user", "fas fa-cog",
+                "fas fa-link", "fas fa-cloud", "fas fa-database", "fas fa-check-circle", "fas fa-info-circle", "fas fa-qrcode"
+            ],
+            "Mata Pelajaran": [
+                "fas fa-calculator", "fas fa-flask", "fas fa-globe-asia", "fas fa-language", 
+                "fas fa-palette", "fas fa-music", "fas fa-futbol", "fas fa-mosque", 
+                "fas fa-dna", "fas fa-atom", "fas fa-history", "fas fa-book", "fas fa-pen-nib", 
+                "fas fa-microscope", "fas fa-map-marked-alt", "fas fa-brain"
+            ],
+            "Jenjang & Sekolah": [
+                "fas fa-shapes", "fas fa-layer-group", "fas fa-graduation-cap", "fas fa-school", 
+                "fas fa-user-graduate", "fas fa-child", "fas fa-chalkboard-teacher", "fas fa-bus",
+                "fas fa-clock", "fas fa-users", "fas fa-id-card"
+            ],
+            "Teknologi & Media": [
+                "fas fa-video", "fas fa-camera", "fas fa-microphone", "fas fa-desktop", 
+                "fas fa-mobile-alt", "fas fa-tablet-alt", "fas fa-gamepad", "fas fa-robot",
+                "fas fa-wifi", "fas fa-satellite", "fas fa-code-branch", "fas fa-qrcode"
+            ],
+            "Dokumen & Admin": [
+                "fas fa-file-pdf", "fas fa-file-word", "fas fa-file-excel", "fas fa-file-powerpoint", 
+                "fas fa-copy", "fas fa-paste", "fas fa-print", "fas fa-archive", "fas fa-trash-alt"
+            ]
         };
 
         const initFirebase = async () => {
@@ -607,6 +730,7 @@
                 a.innerHTML = `
                     <i class="${item.icon}" style="color: ${item.color}"></i>
                     <span class="item-title">${item.name}</span>
+                    <span class="item-desc">${item.description || ''}</span>
                     ${metaHtml}
                 `;
                 listContainer.appendChild(a);
@@ -687,6 +811,8 @@
         window.saveItem = async function() {
             const name = document.getElementById('newAppName').value;
             const url = document.getElementById('newAppUrl').value;
+            const description = document.getElementById('newAppDesc').value; // Get Description
+
             if (!name || !url) return window.showAlert("Perhatian", "Mohon isi Nama dan URL!", true);
 
             const icon = document.getElementById('selectedIcon').value;
@@ -700,7 +826,7 @@
             
             const newItem = {
                 id: editingIndex >= 0 ? currentList[editingIndex].id : Date.now(),
-                name, url, icon, color,
+                name, url, description, icon, color, // Save Description
                 ...(currentAdminMode === 'materi' && { category, level, grade })
             };
 
@@ -728,6 +854,7 @@
 
             document.getElementById('newAppName').value = item.name;
             document.getElementById('newAppUrl').value = item.url;
+            document.getElementById('newAppDesc').value = item.description || ''; // Load Description
             window.selectIcon(item.icon, null); 
             window.selectColor(item.color, null);
 
@@ -745,6 +872,7 @@
             editingIndex = -1;
             document.getElementById('newAppName').value = '';
             document.getElementById('newAppUrl').value = '';
+            document.getElementById('newAppDesc').value = ''; // Clear Description
             document.getElementById('newAppCategory').value = '';
             document.getElementById('newAppLevel').value = '';
             document.getElementById('newAppClass').value = '';
@@ -796,13 +924,45 @@
         window.selectColor = function(color, el) {
             document.getElementById('selectedColor').value = color;
             document.querySelectorAll('.swatch').forEach(e => e.classList.remove('selected'));
-            if(!el) { } else { el.classList.add('selected'); }
+            
+            if(!el) { 
+                // Programmatic selection logic here if needed
+            } else { 
+                el.classList.add('selected'); 
+                // If it's the color picker, force update its own background
+                if(el.classList.contains('color-picker-wrapper')) {
+                    // Optional: visual feedback
+                }
+            }
         };
 
         // --- Rendering ---
         function renderContent() {
             document.getElementById('heroTitleDisplay').innerHTML = `${appData.heroLine1}<br><span class='text-brand'>${appData.heroLine2}</span>`;
-            document.getElementById('heroSubDisplay').textContent = appData.heroSub;
+            
+            // UPDATED: Typing Effect Logic
+            const descEl = document.getElementById('heroSubDisplay');
+            if (typingTimeout) clearTimeout(typingTimeout); // Reset if re-rendering
+            descEl.innerHTML = ""; // Clear content
+            
+            let text = appData.heroSub;
+            let i = 0;
+            
+            function type() {
+                if (i < text.length) {
+                    descEl.innerHTML += text.charAt(i);
+                    i++;
+                    typingTimeout = setTimeout(type, 30); // Typing speed
+                } else {
+                    // Wait 60s then restart
+                    typingTimeout = setTimeout(() => {
+                        descEl.innerHTML = "";
+                        i = 0;
+                        type();
+                    }, 60000);
+                }
+            }
+            type();
 
             const cardsContainer = document.getElementById('navCardsContainer');
             cardsContainer.innerHTML = '';
