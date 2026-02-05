@@ -468,7 +468,7 @@
             try {
                 await window.stopScanner(); window.appState.html5QrCode = new window.Html5Qrcode("reader");
                 window.appState.scannerActive = true; 
-                await window.appState.html5QrCode.start({ facingMode: window.appState.cameraFacingMode }, { fps: 20, qrbox: 250, aspectRatio: 1.0 }, async (text) => {
+                await window.appState.html5QrCode.start({ facingMode: window.appState.cameraFacingMode }, { fps: 20, qrbox: (viewfinderWidth, viewfinderHeight) => { const minEdge = Math.min(viewfinderWidth, viewfinderHeight); const qrboxSize = Math.floor(minEdge * 0.85); return { width: qrboxSize, height: qrboxSize }; }, aspectRatio: 1.0 }, async (text) => {
                         if (window.appState.scannerLock) return;
                         const student = window.appState.students.find(s => (s.kode_qr && s.kode_qr === text) || s.nama_siswa.toLowerCase() === text.trim().toLowerCase());
                         if (student) {
@@ -657,7 +657,7 @@
             let savedScrollTop = 0; const container = document.getElementById('view-container'); if (container) savedScrollTop = container.scrollTop;
             const root = document.getElementById('root');
             if (window.appState.loading) { root.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse text-center">Menghubungkan...</div>`; return; }
-            if (!window.appState.isAuthenticated) { root.innerHTML = `<div class="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden mb-6"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">SIJURU</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">MASUKKAN KODE AKSES ANDA!</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> Buka Sistem</button></form></div></div>`; lucide.createIcons(); return; }
+            if (!window.appState.isAuthenticated) { root.innerHTML = `<div class="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50"><div class="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-2xl max-w-sm w-full text-center border animate-fadeIn relative overflow-hidden mb-6"><div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div><div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-8 shadow-inner text-center"><i data-lucide="key"></i></div><h2 class="text-2xl font-black mb-1 uppercase tracking-tighter leading-none text-center">Login <span class="text-blue-600">SIJURU</span></h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-10 text-center">MASUKKAN KODE AKSES ANDA!</p><form onsubmit="window.handlePinLogin(event)" class="space-y-6"><input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="••••••" autocomplete="new-password" value="" autofocus class="w-full bg-slate-50 rounded-xl py-6 text-center text-4xl font-black tracking-[0.5em] indent-[0.5em] border-2 border-transparent focus:border-blue-100 outline-none transition-all placeholder:tracking-[0.5em] placeholder:indent-[0.5em]"><button type="submit" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl text-center"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> Buka Sistem</button></form></div><div class="text-center opacity-60"><p class="text-[10px] font-bold text-slate-400 mb-1">Powered by ReezApps</p><p class="text-[10px] font-bold text-slate-400">Mohamad Rizki, S.Pd., Gr.</p></div></div>`; lucide.createIcons(); return; }
 
             const v = window.appState.currentView; const collapsed = window.appState.sidebarCollapsed;
             root.innerHTML = `
@@ -1094,10 +1094,25 @@
         input, textarea, select { text-align: left !important; }
         #qr-canvas-render canvas, #qr-canvas-render img { margin: 0 auto; display: block; border-radius: 1.25rem; border: 8px solid #f8fafc; max-width: 100%; height: auto; }
         aside { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        /* Scanner Specific Styles */
+        
+        /* Scanner Specific Styles - PERBAIKAN KAMERA TERBALIK & TAMPILAN */
         #reader { width: 100%; height: 100%; position: relative; overflow: hidden; background: #000; }
-        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; border-radius: 0 !important; transform: none !important; }
-        #reader.mirror-mode video { transform: scaleX(-1) !important; }
+        
+        /* Reset transform agar kamera belakang normal (tidak terbalik atas-bawah/kiri-kanan) */
+        #reader video { 
+            object-fit: cover !important; 
+            width: 100% !important; 
+            height: 100% !important; 
+            border-radius: 0 !important; 
+            transform: none !important; 
+        }
+        
+        /* Khusus kamera depan (selfie), kita mirror secara horizontal saja */
+        /* GUNAKAN ID AGAR SPECIFICITY LEBIH TINGGI DARI RULE DI ATAS */
+        #reader.mirror-mode video { 
+            transform: scaleX(-1) !important; 
+        }
+
         input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; }
         @media (min-width: 1024px) { main { transform-origin: top center; } .max-w-7xl { max-width: 1400px; } }
         html, body { height: 100%; width: 100%; overflow: hidden; }
