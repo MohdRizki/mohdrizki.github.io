@@ -1187,8 +1187,17 @@
                     if(extractedContext) prompt += `\nKonteks materi acuan:\n${extractedContext}`;
 
                     const sGlobalAPI = getSettings();
-                    const activeKey = sGlobalAPI.apiKey || "";
-                    const dynamicApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
+                    const activeKey = sGlobalAPI.apiKey ? sGlobalAPI.apiKey.trim() : "";
+                    
+                    // Validasi: Cegah jalannya fungsi jika kunci kosong
+                    if (!activeKey) {
+                        showToast('Kunci API belum diisi di Pengaturan.', 'error');
+                        if(btn) { btn.innerHTML = `✨ Auto Rumuskan TP`; btn.disabled = false; }
+                        return;
+                    }
+                    
+                    // Gunakan model publik gemini-1.5-flash
+                    const dynamicApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`;
 
                     const result = await fetchWithRetry(dynamicApiUrl, {
                         method: 'POST',
@@ -1271,11 +1280,24 @@
 
                 const btnGen = document.getElementById('btn-generate');
                 const originalBtnHtml = btnGen ? btnGen.innerHTML : '';
-                if(btnGen) { btnGen.disabled = true; btnGen.innerHTML = `⏳ Merangkai Komponen AI...`; }
                 
-                const es = document.getElementById('empty-state'); if(es) es.classList.add('hidden');
-                const pw = document.getElementById('pdf-wrapper'); if(pw) pw.classList.add('hidden');
-                const ls = document.getElementById('loading-state'); if(ls) ls.classList.remove('hidden');
+                const es = document.getElementById('empty-state');
+                const pw = document.getElementById('pdf-wrapper');
+                const ls = document.getElementById('loading-state');
+                
+                const sGlobalAPI = getSettings();
+                const activeKey = sGlobalAPI.apiKey ? sGlobalAPI.apiKey.trim() : "";
+                
+                // Validasi API Key sebelum melakukan pemrosesan lebih lanjut
+                if (!activeKey) {
+                    showToast("Kunci API kosong! Silakan isi di menu Pengaturan.", "error");
+                    return;
+                }
+
+                if(btnGen) { btnGen.disabled = true; btnGen.innerHTML = `⏳ Merangkai Komponen AI...`; }
+                if(es) es.classList.add('hidden');
+                if(pw) pw.classList.add('hidden');
+                if(ls) ls.classList.remove('hidden');
 
                 try {
                     let extractedText = "";
@@ -1409,9 +1431,8 @@
                         GUNAKAN FORMAT RESMI DAN FORMAL (TANPA EMOJI, MENGGUNAKAN TABEL HITAM PUTIH RAPI, DAN FORMAT UJIAN/LKPD STANDAR NASIONAL)]`;
                     }
 
-                    const sGlobalAPI = getSettings();
-                    const activeKey = sGlobalAPI.apiKey || "";
-                    const dynamicApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
+                    // Gunakan model publik gemini-1.5-flash
+                    const dynamicApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`;
 
                     const result = await fetchWithRetry(dynamicApiUrl, {
                         method: 'POST',
