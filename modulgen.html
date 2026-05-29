@@ -551,16 +551,6 @@
                             </div>
                         </div>
 
-                        <!-- BAGIAN C: Konfigurasi AI -->
-                        <div>
-                            <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 flex items-center"><span class="bg-indigo-100 text-indigo-600 w-7 h-7 rounded-lg flex items-center justify-center mr-3 text-sm">C</span> Sistem AI (Untuk Publik / Vercel)</h3>
-                            <div>
-                                <label class="form-label">Kunci API Gemini (Gemini API Key)</label>
-                                <input type="password" id="set-apikey" class="form-input font-mono text-sm" placeholder="AIzaSy... (Kosongkan jika berjalan di Canvas lokal)">
-                                <p class="text-[11px] font-medium text-slate-500 mt-1.5">Untuk penggunaan di Vercel, Anda wajib memasukkan Kunci API secara mandiri. Dapatkan secara gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 hover:underline">Google AI Studio</a>.</p>
-                            </div>
-                        </div>
-
                         <div class="pt-4 border-t border-slate-100 flex justify-end">
                             <button type="submit" class="btn-primary shadow-md !px-8">💾 Simpan Pengaturan</button>
                         </div>
@@ -659,20 +649,8 @@
         const lf = localforage.createInstance({ name: "SpapPintar_DB", storeName: "pustaka_lokal" });
 
         /* =========================================================================
-           💡 PENGATURAN API GEMINI DINAMIS
+           💡 PENGATURAN API GEMINI (VIA VERCEL BACKEND)
            ========================================================================= */
-        // Kunci API kini dipanggil secara dinamis dari menu Pengaturan (localStorage)
-        // untuk mengamankan publikasi di Vercel/GitHub Pages.
-
-        // Ganti bagian depan URL ini dengan URL Vercel yang kamu dapatkan
-const urlVercel = "https://mohdrizki-github-io.vercel.app/api/chat"; 
-
-const response = await fetch(urlVercel, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pesan: promptTeksKamu })
-});
-
         let currentUser = null;
         let currentPdfObjectUrl = null;
 
@@ -751,8 +729,7 @@ const response = await fetch(urlVercel, {
             jmlSiswa: 32,
             metode: 'Pendekatan Saintifik, Model Problem Based Learning (PBL)',
             sarana: 'Pengaturan tempat duduk berkelompok, pemanfaatan proyektor.',
-            kondisi: 'Reguler/tipikal. Gaya belajar heterogen (visual, auditori, kinestetik).',
-            apiKey: ''
+            kondisi: 'Reguler/tipikal. Gaya belajar heterogen (visual, auditori, kinestetik).'
         };
 
         function getSettings() {
@@ -775,7 +752,6 @@ const response = await fetch(urlVercel, {
             const e2 = document.getElementById('set-metode'); if(e2) e2.value = s.metode;
             const e3 = document.getElementById('set-sarana'); if(e3) e3.value = s.sarana;
             const e4 = document.getElementById('set-kondisi'); if(e4) e4.value = s.kondisi;
-            const eApi = document.getElementById('set-apikey'); if(eApi) eApi.value = s.apiKey;
         }
 
         const settingsForm = document.getElementById('settings-form');
@@ -793,8 +769,7 @@ const response = await fetch(urlVercel, {
                     jmlSiswa: document.getElementById('set-jmlSiswa')?.value || defaultSettings.jmlSiswa,
                     metode: document.getElementById('set-metode')?.value || defaultSettings.metode,
                     sarana: document.getElementById('set-sarana')?.value || defaultSettings.sarana,
-                    kondisi: document.getElementById('set-kondisi')?.value || defaultSettings.kondisi,
-                    apiKey: document.getElementById('set-apikey')?.value || defaultSettings.apiKey
+                    kondisi: document.getElementById('set-kondisi')?.value || defaultSettings.kondisi
                 };
                 localStorage.setItem('spapSettings_v6_reezapps', JSON.stringify(s));
                 
@@ -1139,14 +1114,22 @@ const response = await fetch(urlVercel, {
             return text;
         }
 
-        // ------------------ GENERATOR AI API ------------------
+        // ------------------ GENERATOR AI API (DENGAN VERCEL PROXY) ------------------
         async function fetchWithRetry(url, options, retries = 5) {
             const backoffDelays = [1000, 2000, 4000, 8000, 16000];
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(url, options);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    return await response.json();
+                    
+                    // Fleksibilitas format kembalian dari Vercel
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.indexOf("application/json") !== -1) {
+                        return await response.json();
+                    } else {
+                        const text = await response.text();
+                        return { text: text };
+                    }
                 } catch (error) {
                     if (i === retries - 1) throw error;
                     await delay(backoffDelays[i]);
@@ -1162,7 +1145,7 @@ const response = await fetch(urlVercel, {
         const dtp = document.getElementById('tglPelaksanaan'); if(dtp) dtp.value = new Date().toISOString().split('T')[0];
 
 
-        // 🌟 1. FUNGSI AUTO TP 🌟
+        // 🌟 1. FUNGSI AUTO TP (Melalui Vercel) 🌟
         const btnAutoTp = document.getElementById('btn-auto-tp');
         if(btnAutoTp) {
             btnAutoTp.addEventListener('click', async () => {
@@ -1192,29 +1175,21 @@ const response = await fetch(urlVercel, {
                         }
                     }
 
-                    let prompt = `Berikan respons dalam format JSON murni. Buatlah 1 "materi_pokok" (1-4 kata ringkas) dan 1 "tp" (Satu kalimat Tujuan Pembelajaran menggunakan Kata Kerja Operasional yang spesifik, jangan pakai poin). Fokus mapel: ${mapel} kelas ${kelas}. \nStruktur JSON Wajib:\n{\n  "materi_pokok": "...",\n  "tp": "..."\n}`;
-                    if(extractedContext) prompt += `\nKonteks materi acuan:\n${extractedContext}`;
+                    let promptTeksKamu = `Berikan respons dalam format JSON murni. Buatlah 1 "materi_pokok" (1-4 kata ringkas) dan 1 "tp" (Satu kalimat Tujuan Pembelajaran menggunakan Kata Kerja Operasional yang spesifik, jangan pakai poin). Fokus mapel: ${mapel} kelas ${kelas}. \nStruktur JSON Wajib:\n{\n  "materi_pokok": "...",\n  "tp": "..."\n}`;
+                    if(extractedContext) promptTeksKamu += `\nKonteks materi acuan:\n${extractedContext}`;
 
-                    const sGlobalAPI = getSettings();
-                    const activeKey = sGlobalAPI.apiKey ? sGlobalAPI.apiKey.trim() : "";
-                    
-                    // Validasi: Cegah jalannya fungsi jika kunci kosong
-                    if (!activeKey) {
-                        showToast('Kunci API belum diisi di Pengaturan.', 'error');
-                        if(btn) { btn.innerHTML = `✨ Auto Rumuskan TP`; btn.disabled = false; }
-                        return;
-                    }
-                    
-                    // Gunakan model publik gemini-1.5-flash
-                    const dynamicApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`;
+                    // Ganti bagian depan URL ini dengan URL Vercel yang kamu dapatkan
+                    const urlVercel = "https://mohdrizki-github-io.vercel.app/api/chat"; 
 
-                    const result = await fetchWithRetry(dynamicApiUrl, {
+                    const result = await fetchWithRetry(urlVercel, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                        body: JSON.stringify({ pesan: promptTeksKamu })
                     });
                     
-                    let responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+                    // Mendukung kembalian langsung atau kembalian terbungkus API Vercel
+                    let responseText = typeof result === 'string' ? result : (result.candidates?.[0]?.content?.parts?.[0]?.text || result.text || result.pesan || result.response || JSON.stringify(result) || '{}');
+                    
                     // Bersihkan tag markdown pembungkus JSON jika AI menyertakannya
                     responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
                     
@@ -1233,12 +1208,12 @@ const response = await fetch(urlVercel, {
                         if(tpInput) tpInput.value = responseText;
                         showToast('TP dibuat, tapi format parsial. Cek teks.', 'info');
                     }
-                } catch (e) { showToast('Gagal terhubung ke AI. Cek Kunci API di menu Pengaturan.', 'error'); } 
+                } catch (e) { showToast('Gagal terhubung ke AI. Pastikan Vercel merespons dengan benar.', 'error'); } 
                 finally { if(btn) { btn.innerHTML = `✨ Auto Rumuskan TP`; btn.disabled = false; } }
             });
         }
 
-        // 🌟 2. MAIN GENERATOR EXECUTION 🌟
+        // 🌟 2. MAIN GENERATOR EXECUTION (Melalui Vercel) 🌟
         const generatorForm = document.getElementById('generator-form');
         if(generatorForm) {
             generatorForm.addEventListener('submit', async (e) => {
@@ -1293,15 +1268,6 @@ const response = await fetch(urlVercel, {
                 const es = document.getElementById('empty-state');
                 const pw = document.getElementById('pdf-wrapper');
                 const ls = document.getElementById('loading-state');
-                
-                const sGlobalAPI = getSettings();
-                const activeKey = sGlobalAPI.apiKey ? sGlobalAPI.apiKey.trim() : "";
-                
-                // Validasi API Key sebelum melakukan pemrosesan lebih lanjut
-                if (!activeKey) {
-                    showToast("Kunci API kosong! Silakan isi di menu Pengaturan.", "error");
-                    return;
-                }
 
                 if(btnGen) { btnGen.disabled = true; btnGen.innerHTML = `⏳ Merangkai Komponen AI...`; }
                 if(es) es.classList.add('hidden');
@@ -1440,20 +1406,21 @@ const response = await fetch(urlVercel, {
                         GUNAKAN FORMAT RESMI DAN FORMAL (TANPA EMOJI, MENGGUNAKAN TABEL HITAM PUTIH RAPI, DAN FORMAT UJIAN/LKPD STANDAR NASIONAL)]`;
                     }
 
-                    // Gunakan model publik gemini-1.5-flash
-                    const dynamicApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`;
+                    // Ganti bagian depan URL ini dengan URL Vercel yang kamu dapatkan
+                    const urlVercel = "https://mohdrizki-github-io.vercel.app/api/chat"; 
+                    
+                    // Gabungkan systemPrompt dan instruksi utama ke dalam satu payload "pesan"
+                    const promptTeksKamu = systemPrompt + "\n\nEksekusi pembuatan modul ajar presisi berdasarkan instruksi dan konteks di atas.";
 
-                    const result = await fetchWithRetry(dynamicApiUrl, {
+                    const result = await fetchWithRetry(urlVercel, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: "Eksekusi pembuatan modul ajar presisi." }] }],
-                            systemInstruction: { parts: [{ text: systemPrompt }] },
-                            generationConfig: { temperature: 0.6 }
-                        })
+                        body: JSON.stringify({ pesan: promptTeksKamu })
                     });
 
-                    let generatedHTML = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    // Fleksibel menangkap balasan apa pun dari API Backend
+                    let generatedHTML = typeof result === 'string' ? result : (result.candidates?.[0]?.content?.parts?.[0]?.text || result.text || result.pesan || result.response || "");
+                    
                     generatedHTML = generatedHTML.replace(/^```html/i, '').replace(/^```/i, '').replace(/```$/i, '');
 
                     setHtml('pdf-content', generatedHTML);
@@ -1465,7 +1432,7 @@ const response = await fetch(urlVercel, {
                     showToast('Kreator AI Berhasil Menyusun Dokumen!', 'success');
 
                 } catch (error) {
-                    showToast("Komunikasi AI terputus. Cek koneksi dan Kunci API di Pengaturan.", "error");
+                    showToast("Komunikasi AI terputus. Cek koneksi Vercel Backend.", "error");
                     if(ls) ls.classList.add('hidden');
                     if(es) es.classList.remove('hidden');
                 } finally {
