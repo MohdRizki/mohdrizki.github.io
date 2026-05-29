@@ -664,6 +664,15 @@
         // Kunci API kini dipanggil secara dinamis dari menu Pengaturan (localStorage)
         // untuk mengamankan publikasi di Vercel/GitHub Pages.
 
+        // Ganti bagian depan URL ini dengan URL Vercel yang kamu dapatkan
+const urlVercel = "https://mohdrizki-github-io.vercel.app/api/chat"; 
+
+const response = await fetch(urlVercel, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pesan: promptTeksKamu })
+});
+
         let currentUser = null;
         let currentPdfObjectUrl = null;
 
