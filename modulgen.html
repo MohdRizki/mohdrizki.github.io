@@ -1187,6 +1187,11 @@
                         body: JSON.stringify({ pesan: promptTeksKamu })
                     });
                     
+                    // Deteksi jika API AI membalas dengan Error
+                    if (result.error) {
+                        throw new Error(result.error.message || "Error dari Server AI.");
+                    }
+                    
                     // Mendukung kembalian langsung atau kembalian terbungkus API Vercel
                     let responseText = typeof result === 'string' ? result : (result.candidates?.[0]?.content?.parts?.[0]?.text || result.text || result.pesan || result.response || JSON.stringify(result) || '{}');
                     
@@ -1208,7 +1213,7 @@
                         if(tpInput) tpInput.value = responseText;
                         showToast('TP dibuat, tapi format parsial. Cek teks.', 'info');
                     }
-                } catch (e) { showToast('Gagal terhubung ke AI. Pastikan Vercel merespons dengan benar.', 'error'); } 
+                } catch (e) { showToast(e.message || 'Gagal terhubung ke AI. Pastikan Vercel merespons dengan benar.', 'error'); } 
                 finally { if(btn) { btn.innerHTML = `✨ Auto Rumuskan TP`; btn.disabled = false; } }
             });
         }
@@ -1418,10 +1423,27 @@
                         body: JSON.stringify({ pesan: promptTeksKamu })
                     });
 
+                    // Deteksi jika API AI membalas dengan Error (seperti API Key salah/limit)
+                    if (result.error) {
+                        throw new Error(result.error.message || "Gagal memproses AI. Cek log Vercel.");
+                    }
+
                     // Fleksibel menangkap balasan apa pun dari API Backend
-                    let generatedHTML = typeof result === 'string' ? result : (result.candidates?.[0]?.content?.parts?.[0]?.text || result.text || result.pesan || result.response || "");
+                    let generatedHTML = "";
+                    if (typeof result === 'string') {
+                        generatedHTML = result;
+                    } else if (result.candidates && result.candidates.length > 0) {
+                        generatedHTML = result.candidates[0].content.parts[0].text;
+                    } else {
+                        generatedHTML = result.text || result.pesan || result.response || JSON.stringify(result);
+                    }
                     
                     generatedHTML = generatedHTML.replace(/^```html/i, '').replace(/^```/i, '').replace(/```$/i, '');
+
+                    // Jika balasan ternyata benar-benar kosong
+                    if (!generatedHTML || generatedHTML.trim() === "" || generatedHTML === "{}") {
+                        throw new Error("AI membalas dengan teks kosong. Coba ulangi atau cek Vercel.");
+                    }
 
                     setHtml('pdf-content', generatedHTML);
                     
@@ -1432,8 +1454,10 @@
                     showToast('Kreator AI Berhasil Menyusun Dokumen!', 'success');
 
                 } catch (error) {
-                    showToast("Komunikasi AI terputus. Cek koneksi Vercel Backend.", "error");
+                    console.error("AI Error Detail:", error);
+                    showToast(error.message || "Komunikasi AI terputus. Cek koneksi Vercel Backend.", "error");
                     if(ls) ls.classList.add('hidden');
+                    if(pw) pw.classList.add('hidden'); // Sembunyikan kanvas putih
                     if(es) es.classList.remove('hidden');
                 } finally {
                     if(btnGen) { btnGen.disabled = false; btnGen.innerHTML = originalBtnHtml; }
