@@ -87,28 +87,10 @@ const materialAccents = [
   { bg: 'bg-retro-lavender', gradient: 'gradient-lavender-pink', illBg: 'bg-retro-mint', emoji: '🎨' },
 ];
 
-/* ─── Fallback static data when Firebase is empty ──── */
-const fallbackApps = [
-  { id: "1", name: "Calistung Ceria", desc: "Aplikasi interaktif belajar membaca dan berhitung untuk siswa kelas rendah.", badge: "Unggulan", img: "/app-nilaiku.png", category: "Pendidikan Dasar" },
-  { id: "2", name: "Kuis Tematik SD", desc: "Kuis interaktif berbasis Kurikulum Merdeka untuk SD.", badge: "Terbaru", img: "/app-hadircepat.png", category: "Evaluasi" },
-];
-
-const fallbackMaterials = [
-  { id: "1", title: "Modul Membaca Pemula", desc: "Modul interaktif mengenalkan huruf dan suku kata.", img: "/materi-uiux.png", author: "Mohamad Rizki" },
-  { id: "2", title: "Matematika Dasar Ceria", desc: "Belajar penjumlahan dan pengurangan dengan ilustrasi menarik.", img: "/materi-coding.png", author: "Mohamad Rizki" },
-  { id: "3", title: "Pengenalan Alam", desc: "Media visual IPA untuk SD mengenai hewan dan tumbuhan.", img: "/materi-web.png", author: "Mohamad Rizki" },
-];
-
-const fallbackRecent = [
-  { id: "r1", name: "RuangKolab", img: "/app-ruangkolab.png", author: "Mohamad Rizki" },
-  { id: "r2", name: "KelasKu Digital", img: "/app-kelasku.png", author: "Mohamad Rizki" },
-  { id: "r3", name: "QuizPro Interaktif", img: "/app-quizpro.png", author: "Mohamad Rizki" },
-];
-
 export default function Home() {
   const itemVariants = useContext(StaggerContext);
-  const [apps, setApps] = useState(fallbackApps);
-  const [materials, setMaterials] = useState(fallbackMaterials);
+  const [apps, setApps] = useState([]);
+  const [materials, setMaterials] = useState([]);
 
   const [targetVisitors, setTargetVisitors] = useState(0); // 0 ensures it waits for fetch
 
@@ -287,6 +269,7 @@ export default function Home() {
         </RevealSection>
 
         {/* ═══ APLIKASI POPULER — NEW CARD DESIGN ═══ */}
+        {apps.length > 0 && (
         <RevealSection className="section-layered">
           <div className="section-bg">
             <div className="absolute top-0 right-0 w-40 h-40 rounded-full opacity-[0.05]" style={{ background: 'radial-gradient(circle, #FFD56B, transparent 70%)' }}></div>
@@ -377,8 +360,10 @@ export default function Home() {
             </div>
           </div>
         </RevealSection>
+        )}
 
         {/* ═══ MATERI EDUKASI — NEW CARD DESIGN ═══ */}
+        {materials.length > 0 && (
         <RevealSection className="section-layered">
           <div className="section-bg">
             <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-[0.05]" style={{ background: 'radial-gradient(circle, #B8CCE2, transparent 70%)' }}></div>
@@ -447,57 +432,7 @@ export default function Home() {
             </div>
           </div>
         </RevealSection>
-
-        {/* ═══ TERBARU — NEW CARD DESIGN ═══ */}
-        <RevealSection className="section-layered">
-          <div className="section-bg">
-            <div className="absolute top-0 left-1/2 w-36 h-36 rounded-full opacity-[0.05]" style={{ background: 'radial-gradient(circle, #C9B6FF, transparent 70%)' }}></div>
-          </div>
-          <div className="section-content">
-            <SectionHeader 
-              title="Terbaru" 
-              subtitle="Karya dan kegiatan terbaru di kelas" 
-              link="/aplikasi"
-              icon={<FloppyDisk weight="fill" size={18} />}
-              accentColor="bg-retro-lavender"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-5">
-              {fallbackRecent.map((item, i) => {
-                const recentAccents = ['gradient-yellow-lime', 'gradient-sky-mint', 'gradient-lavender-pink'];
-                const recentBgs = ['bg-retro-yellow', 'bg-retro-sky', 'bg-retro-lavender'];
-                const recentEmoji = ['🆕', '📱', '🎮'];
-                
-                return (
-                  <motion.div key={item.id} variants={itemVariants} custom={i + 11} whileHover={{ y: -4 }}>
-                    <Link to="/aplikasi" className="retro-card p-0 bg-retro-white group block shadow-lvl-1 hover:shadow-lvl-2 transition-all relative overflow-visible">
-                      <div className="flex flex-col">
-                        {/* Colored band */}
-                        <div className={`${recentAccents[i % 3]} h-2 w-full rounded-t-[9px]`}></div>
-                        
-                        <div className="p-3 pt-2">
-                          <div className={`w-full aspect-video ${recentBgs[i % 3]} border-[2.5px] border-retro-dark rounded-xl mb-2.5 overflow-hidden shadow-lvl-1 group-hover:shadow-lvl-2 group-hover:scale-[1.02] transition-all duration-300 relative`}>
-                            <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-40 pointer-events-none"></div>
-                          </div>
-                          <h3 className="font-heading font-bold text-sm leading-tight group-hover:text-retro-blue transition-colors">{item.name}</h3>
-                          <div className="flex items-center gap-1.5 mt-1.5">
-                            <div className={`w-4 h-4 rounded-full ${recentAccents[i % 3]} border-[1.5px] border-retro-dark`}></div>
-                            <span className="text-[10px] font-bold text-retro-dark/40">{item.author}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Floating Emoji Badge */}
-                      <div className="absolute -top-4 right-4 w-9 h-9 rounded-full bg-retro-white retro-border flex items-center justify-center text-base pb-[2px] shadow-lvl-1 z-20">
-                        {recentEmoji[i % 3]}
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        </RevealSection>
+        )}
 
       </div>
     </main>

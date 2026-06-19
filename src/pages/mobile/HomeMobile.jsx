@@ -67,24 +67,9 @@ const materialAccents = [
 ];
 
 /* ─── Fallback static data ──── */
-const fallbackApps = [
-  { id: "1", name: "Calistung Ceria", desc: "Aplikasi belajar membaca untuk SD.", badge: "Unggulan", img: "/app-nilaiku.png", category: "Pendidikan" },
-  { id: "2", name: "Kuis Tematik", desc: "Kuis berbasis Kurikulum Merdeka.", badge: "Baru", img: "/app-hadircepat.png", category: "Evaluasi" },
-];
-
-const fallbackMaterials = [
-  { id: "1", title: "Modul Membaca Pemula", desc: "Mengenalkan huruf.", img: "/materi-uiux.png", author: "M. Rizki" },
-  { id: "2", title: "Matematika Ceria", desc: "Penjumlahan & pengurangan.", img: "/materi-coding.png", author: "M. Rizki" },
-];
-
-const fallbackRecent = [
-  { id: "r1", name: "RuangKolab", img: "/app-ruangkolab.png", author: "M. Rizki" },
-  { id: "r2", name: "KelasKu Digital", img: "/app-kelasku.png", author: "M. Rizki" },
-];
-
 export default function HomeMobile() {
-  const [apps, setApps] = useState(fallbackApps);
-  const [materials, setMaterials] = useState(fallbackMaterials);
+  const [apps, setApps] = useState([]);
+  const [materials, setMaterials] = useState([]);
 
   const [targetVisitors, setTargetVisitors] = useState(0); // 0 ensures it waits for fetch
 
@@ -212,6 +197,7 @@ export default function HomeMobile() {
         </div>
 
         {/* ═══ APLIKASI POPULER ═══ */}
+        {apps.length > 0 && (
         <div>
           <SectionHeader title="Aplikasi Populer" subtitle="Media ajar interaktif SD" link="/aplikasi" icon={<Rocket weight="fill" size={14} />} accentColor="bg-retro-yellow" />
           <div className="flex flex-col gap-4">
@@ -240,8 +226,10 @@ export default function HomeMobile() {
             })}
           </div>
         </div>
+        )}
 
         {/* ═══ MATERI EDUKASI ═══ */}
+        {materials.length > 0 && (
         <div>
           <SectionHeader title="Materi Edukasi" subtitle="Bahan ajar Kurikulum Merdeka" link="/materi" icon={<BookOpenText weight="fill" size={14} />} accentColor="bg-retro-mint" />
           <div className="grid grid-cols-1 gap-4">
@@ -264,6 +252,7 @@ export default function HomeMobile() {
             })}
           </div>
         </div>
+        )}
 
       </div>
     </main>
