@@ -49,9 +49,9 @@ export default function Navbar() {
                     {isActive && (
                       <motion.div
                         layoutId="navbar-active-pill"
-                        className="absolute inset-0 gradient-yellow-lime border-[2.5px] border-retro-dark rounded-full shadow-lvl-1"
+                        className="absolute inset-0 gradient-yellow-lime border-[2.5px] border-retro-dark rounded-full shadow-lvl-1 z-0"
                         transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                        style={{ zIndex: -1, left: -1, top: -1, right: -1, bottom: -1 }}
+                        style={{ left: -1, top: -1, right: -1, bottom: -1 }}
                       />
                     )}
                     <span className="relative z-10">{link.label}</span>
