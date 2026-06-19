@@ -1,0 +1,20 @@
+<svg viewBox="0 0 100 100" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <g id="paw">
+      <ellipse cx="25" cy="45" rx="8" ry="12" transform="rotate(-25 25 45)" />
+      <ellipse cx="40" cy="28" rx="9" ry="13" transform="rotate(-10 40 28)" />
+      <ellipse cx="60" cy="28" rx="9" ry="13" transform="rotate(10 60 28)" />
+      <ellipse cx="75" cy="45" rx="8" ry="12" transform="rotate(25 75 45)" />
+      <path d="M 32 62 C 32 52, 45 52, 50 52 C 55 52, 68 52, 68 62 C 72 75, 65 85, 50 85 C 35 85, 28 75, 32 62 Z" />
+    </g>
+  </defs>
+
+  <!-- Upright position -->
+  <g>
+    <!-- Dark Retro Outline (Matches cursor outline) -->
+    <use href="#paw" fill="#2D2A26" stroke="#2D2A26" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" />
+    
+    <!-- Inner Fill (Pink for Hand/Click Pointer) -->
+    <use href="#paw" fill="#FFBCB0" />
+  </g>
+</svg>

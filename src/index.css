@@ -1,0 +1,673 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════
+   SOFT RETRO NEO-BRUTALISM 2.0 — DESIGN SYSTEM
+   ═══════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── Base Colors ── */
+  --color-retro-bg: #E0DCD3; /* Even darker beige/gray for obvious contrast */
+  --color-retro-dark: #2D2A26;
+  --color-retro-white: #FFFFFF;
+  --color-retro-grey: #F0EBE1;
+
+  /* ── Accent Colors ── */
+  --color-retro-yellow: #FFD56B;
+  --color-retro-blue: #B8CCE2;
+  --color-retro-pink: #FFBCB0;
+  --color-retro-mint: #B5D8B0;
+
+  /* ── Extended Accent Colors ── */
+  --color-retro-lime: #F1FF5E;
+  --color-retro-hotpink: #FF8FA3;
+  --color-retro-sky: #89E7FF;
+  --color-retro-lavender: #C9B6FF;
+
+  /* ── Semantic Colors ── */
+  --color-retro-forest: #3D6B4F;
+  --color-retro-amber: #E8A317;
+
+  /* ── Typography ── */
+  --font-heading: "Space Grotesk", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════ */
+
+@layer base {
+  body {
+    background-color: var(--color-retro-bg);
+    color: var(--color-retro-dark);
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-body);
+    font-size: 18px;
+    position: relative;
+    zoom: 0.9;
+    /* Neo-brutalism Grid Pattern - Thicker and more visible */
+    background-image: linear-gradient(rgba(45, 42, 38, 0.15) 2px, transparent 2px),
+                      linear-gradient(90deg, rgba(45, 42, 38, 0.15) 2px, transparent 2px);
+    background-size: 40px 40px;
+    background-position: center top;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    overflow-y: scroll; /* Force vertical scrollbar to prevent layout shift */
+    cursor: url('/cursor.svg') 5 5, auto;
+    transition: color 1s ease;
+  }
+
+  /* ── Night Mode Overrides ── */
+  body.night-mode {
+    color: var(--color-retro-white);
+  }
+
+  /* Ensure text remains dark on light elements even in night mode */
+  body.night-mode .glass,
+  body.night-mode [class*="bg-white"],
+  body.night-mode [class*="bg-retro-white"],
+  body.night-mode [class*="bg-retro-yellow"],
+  body.night-mode [class*="bg-retro-pink"],
+  body.night-mode [class*="bg-retro-mint"],
+  body.night-mode [class*="bg-retro-blue"],
+  body.night-mode [class*="bg-retro-lavender"],
+  body.night-mode [class*="bg-retro-sky"],
+  body.night-mode [class*="bg-retro-bg"],
+  body.night-mode [class*="bg-retro-grey"],
+  body.night-mode [class*="gradient-"],
+  body.night-mode .bg-retro-white,
+  body.night-mode .retro-card,
+  body.night-mode .retro-card-feature,
+  body.night-mode .retro-card-highlight,
+  body.night-mode .retro-card-float,
+  body.night-mode .retro-window-body,
+  body.night-mode .sticker,
+  body.night-mode .btn-retro,
+  body.night-mode .btn-primary,
+  body.night-mode .btn-secondary,
+  body.night-mode .btn-ghost:hover {
+    color: var(--color-retro-dark);
+  }
+
+  /* Adapt text utilities to inherit current color instead of hardcoding dark */
+  body.night-mode .text-retro-dark { color: inherit !important; }
+  body.night-mode .text-retro-dark\/10 { color: color-mix(in srgb, currentColor 10%, transparent) !important; }
+  body.night-mode .text-retro-dark\/20 { color: color-mix(in srgb, currentColor 20%, transparent) !important; }
+  body.night-mode .text-retro-dark\/30 { color: color-mix(in srgb, currentColor 30%, transparent) !important; }
+  body.night-mode .text-retro-dark\/40 { color: color-mix(in srgb, currentColor 40%, transparent) !important; }
+  body.night-mode .text-retro-dark\/50 { color: color-mix(in srgb, currentColor 50%, transparent) !important; }
+  body.night-mode .text-retro-dark\/60 { color: color-mix(in srgb, currentColor 60%, transparent) !important; }
+  body.night-mode .text-retro-dark\/70 { color: color-mix(in srgb, currentColor 70%, transparent) !important; }
+  body.night-mode .text-retro-dark\/80 { color: color-mix(in srgb, currentColor 80%, transparent) !important; }
+  body.night-mode .text-retro-dark\/85 { color: color-mix(in srgb, currentColor 85%, transparent) !important; }
+  body.night-mode .text-retro-dark\/90 { color: color-mix(in srgb, currentColor 90%, transparent) !important; }
+
+  a, button, [role="button"], input[type="submit"], input[type="button"], input[type="reset"] {
+    cursor: url('/pointer.png') 12 12, pointer !important;
+  }
+
+  ::selection {
+    background-color: var(--color-retro-yellow);
+    color: var(--color-retro-dark);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   ELEVATION / SHADOW SYSTEM (4 Levels)
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+
+  .shadow-lvl-1 {
+    box-shadow: 2px 2px 0px var(--color-retro-dark);
+  }
+  .shadow-lvl-2 {
+    box-shadow: 4px 4px 0px var(--color-retro-dark);
+  }
+  .shadow-lvl-3 {
+    box-shadow: 8px 8px 0px var(--color-retro-dark);
+  }
+  .shadow-lvl-4 {
+    box-shadow: 12px 12px 0px var(--color-retro-dark);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     BORDER SYSTEM
+     ═══════════════════════════════════════════════════════ */
+
+  .retro-border {
+    border: 3px solid var(--color-retro-dark);
+  }
+  .retro-border-thin {
+    border: 1.5px solid var(--color-retro-dark);
+  }
+  .retro-border-thick {
+    border: 4px solid var(--color-retro-dark);
+  }
+
+  /* Legacy aliases */
+  .retro-shadow {
+    box-shadow: 4px 4px 0px var(--color-retro-dark);
+  }
+  .retro-shadow-sm {
+    box-shadow: 2px 2px 0px var(--color-retro-dark);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     CARD SYSTEM
+     ═══════════════════════════════════════════════════════ */
+
+  /* Standard Card */
+  .retro-card {
+    background-color: white;
+    border: 3px solid var(--color-retro-dark);
+    border-radius: 0.75rem;
+    box-shadow: 4px 4px 0px var(--color-retro-dark);
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.25s ease-out, box-shadow 0.25s ease-out;
+  }
+  .retro-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 6px 6px 0px var(--color-retro-dark);
+  }
+
+  /* Feature Card — elevated with accent strip */
+  .retro-card-feature {
+    background-color: white;
+    border: 3px solid var(--color-retro-dark);
+    border-radius: 0.75rem;
+    box-shadow: 5px 5px 0px var(--color-retro-dark);
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.25s ease-out, box-shadow 0.25s ease-out;
+  }
+  .retro-card-feature:hover {
+    transform: translateY(-4px);
+    box-shadow: 7px 7px 0px var(--color-retro-dark);
+  }
+  .retro-card-feature::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background-color: var(--color-retro-yellow);
+    z-index: 1;
+  }
+
+  /* Highlight Card — strong background */
+  .retro-card-highlight {
+    border: 3px solid var(--color-retro-dark);
+    border-radius: 0.75rem;
+    box-shadow: 6px 6px 0px var(--color-retro-dark);
+    overflow: hidden;
+    position: relative;
+    background-color: var(--color-retro-yellow);
+  }
+
+  /* Floating Card — extra elevation */
+  .retro-card-float {
+    background-color: white;
+    border: 3px solid var(--color-retro-dark);
+    border-radius: 0.75rem;
+    box-shadow: 10px 10px 0px var(--color-retro-dark);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     BUTTON SYSTEM
+     ═══════════════════════════════════════════════════════ */
+
+  /* Primary Button */
+  .btn-retro,
+  .btn-primary {
+    border: 3px solid var(--color-retro-dark);
+    box-shadow: 4px 4px 0px var(--color-retro-dark);
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-retro:hover,
+  .btn-primary:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 7px 7px 0px var(--color-retro-dark);
+  }
+  .btn-retro:active,
+  .btn-primary:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 var(--color-retro-dark);
+  }
+
+  /* Secondary Button */
+  .btn-secondary {
+    background-color: var(--color-retro-white);
+    border: 3px solid var(--color-retro-dark);
+    box-shadow: 3px 3px 0px var(--color-retro-dark);
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-family: var(--font-heading);
+    font-weight: 700;
+  }
+  .btn-secondary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0px var(--color-retro-dark);
+    background-color: var(--color-retro-grey);
+  }
+  .btn-secondary:active {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0 var(--color-retro-dark);
+  }
+
+  /* Ghost Button */
+  .btn-ghost {
+    background: transparent;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: all 200ms;
+    font-family: var(--font-heading);
+    font-weight: 700;
+  }
+  .btn-ghost:hover {
+    border-color: var(--color-retro-dark);
+    box-shadow: 2px 2px 0px var(--color-retro-dark);
+    background-color: var(--color-retro-white);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     PILLS / BADGES
+     ═══════════════════════════════════════════════════════ */
+
+  .retro-pill {
+    border: 3px solid var(--color-retro-dark);
+    border-radius: 9999px;
+    box-shadow: 2px 2px 0px var(--color-retro-dark);
+    transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+  }
+  .retro-pill:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px var(--color-retro-dark);
+  }
+  .retro-pill:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 var(--color-retro-dark);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     NAVIGATION LINK
+     ═══════════════════════════════════════════════════════ */
+
+  .nav-link {
+    transition: all 200ms;
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    padding: 0.375rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    position: relative;
+  }
+  .nav-link:hover {
+    background-color: white;
+    border-color: var(--color-retro-dark);
+    box-shadow: 2px 2px 0px var(--color-retro-dark);
+  }
+  .nav-link.active {
+    background-color: white;
+    border-color: var(--color-retro-dark);
+    box-shadow: 2px 2px 0px var(--color-retro-dark);
+    transform: translate(-1px, -1px);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SOLID COLOR UTILITIES
+     ═══════════════════════════════════════════════════════ */
+
+  .gradient-yellow-lime {
+    background-color: var(--color-retro-yellow);
+  }
+  .gradient-pink-yellow {
+    background-color: var(--color-retro-pink);
+  }
+  .gradient-blue-mint {
+    background-color: var(--color-retro-blue);
+  }
+  .gradient-lavender-pink {
+    background-color: var(--color-retro-lavender);
+  }
+  .gradient-sky-mint {
+    background-color: var(--color-retro-sky);
+  }
+  .gradient-hotpink-yellow {
+    background-color: var(--color-retro-hotpink);
+  }
+
+  /* Text gradient */
+  .text-gradient-yellow {
+    color: var(--color-retro-yellow);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     BACKGROUND TEXTURES
+     ═══════════════════════════════════════════════════════ */
+
+  .bg-noise {
+    position: relative;
+  }
+  .bg-noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: inherit;
+  }
+
+  .bg-dots-dense {
+    background-image: radial-gradient(rgba(45, 42, 38, 0.1) 1px, transparent 1px);
+    background-size: 12px 12px;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(45, 42, 38, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(45, 42, 38, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SECTION LAYERING
+     ═══════════════════════════════════════════════════════ */
+
+  .section-layered {
+    position: relative;
+  }
+  .section-layered > .section-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .section-layered > .section-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     RETRO SCROLLBAR
+     ═══════════════════════════════════════════════════════ */
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-retro-yellow);
+    border: 2px solid var(--color-retro-dark);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-retro-pink);
+  }
+
+  .no-scrollbar {
+    overflow-y: overlay;
+    scrollbar-width: thin;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     LOGO ORNAMENT MASK
+     ═══════════════════════════════════════════════════════ */
+
+  .logo-ornament {
+    mask-image: url('/logo.png');
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-image: url('/logo.png');
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     FOCUS STATES (Accessibility)
+     ═══════════════════════════════════════════════════════ */
+
+  *:focus-visible {
+    outline: 3px solid var(--color-retro-yellow);
+    outline-offset: 2px;
+  }
+
+  a:focus-visible,
+  button:focus-visible {
+    outline: 3px solid var(--color-retro-yellow);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     GLASSMORPHISM
+     ═══════════════════════════════════════════════════════ */
+
+  .glass {
+    background: rgba(255, 248, 236, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .glass-dark {
+    background: rgba(45, 42, 38, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   BACKGROUND OVERLAY
+   ═══════════════════════════════════════════════════════ */
+
+.bg-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,248,236,1) 0%, rgba(255,248,236,0.85) 50%, rgba(255,248,236,1) 100%);
+  z-index: -2;
+  pointer-events: none;
+}
+
+.bg-noise-global {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 512px 512px;
+}
+
+.floating-logo-ornament {
+  position: fixed;
+  right: -5%;
+  bottom: -5%;
+  width: 40vw;
+  height: 40vw;
+  min-width: 300px;
+  min-height: 300px;
+  opacity: 0.06;
+  z-index: -1;
+  pointer-events: none;
+  animation: floatSlow 20s ease-in-out infinite alternate, spinSlow 60s linear infinite;
+  filter: grayscale(100%);
+}
+
+/* ═══════════════════════════════════════════════════════
+   KEYFRAME ANIMATIONS
+   ═══════════════════════════════════════════════════════ */
+
+@keyframes floatSlow {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-50px) scale(1.05); }
+}
+@keyframes spinSlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-15px) rotate(-2deg); }
+}
+.float-anim {
+  animation: floaty 4s ease-in-out infinite;
+}
+
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.float-gentle {
+  animation: float-gentle 5s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+.wiggle-anim {
+  animation: wiggle 3s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+.sparkle-anim {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.bounce-gentle {
+  animation: bounce-gentle 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 213, 107, 0); }
+  50% { box-shadow: 0 0 20px 5px rgba(255, 213, 107, 0.2); }
+}
+.pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RETRO WINDOW (Decorative card variant)
+   ═══════════════════════════════════════════════════════ */
+
+.retro-window {
+  border: 3px solid var(--color-retro-dark);
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 4px 4px 0px var(--color-retro-dark);
+}
+.retro-window-titlebar {
+  background-color: var(--color-retro-dark);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.retro-window-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,248,236,0.3);
+}
+.retro-window-body {
+  padding: 1.25rem;
+  background-color: var(--color-retro-white);
+}
+
+/* ═══════════════════════════════════════════════════════
+   STICKER STYLE (for floating decorative elements)
+   ═══════════════════════════════════════════════════════ */
+
+.sticker {
+  border: 3px solid var(--color-retro-dark);
+  border-radius: 1rem;
+  box-shadow: 3px 3px 0px var(--color-retro-dark);
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════
+   GRADIENT BORDER EFFECT
+   ═══════════════════════════════════════════════════════ */
+
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background-color: var(--color-retro-yellow);
+  z-index: -1;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE ADJUSTMENTS
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  body {
+    font-size: 16px;
+    background-size: 20px 20px;
+  }
+
+  .retro-card,
+  .retro-card-feature {
+    border-radius: 0.75rem;
+  }
+
+  .shadow-lvl-3 {
+    box-shadow: 6px 6px 0px var(--color-retro-dark);
+  }
+  .shadow-lvl-4 {
+    box-shadow: 8px 8px 0px var(--color-retro-dark);
+  }
+}
