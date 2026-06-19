@@ -86,7 +86,31 @@ export default function HomeMobile() {
   const [apps, setApps] = useState(fallbackApps);
   const [materials, setMaterials] = useState(fallbackMaterials);
 
-  const { count: visitorsCount } = useAnimatedCounter(12400);
+  const [targetVisitors, setTargetVisitors] = useState(0); // 0 ensures it waits for fetch
+
+  useEffect(() => {
+    const initVisitors = async () => {
+      try {
+        const { doc, getDoc, setDoc, updateDoc, increment } = await import('firebase/firestore');
+        const statsRef = doc(db, 'stats', 'visitors');
+        const docSnap = await getDoc(statsRef);
+        if (docSnap.exists()) {
+          const currentCount = docSnap.data().count || 12400;
+          setTargetVisitors(currentCount + 1);
+          await updateDoc(statsRef, { count: increment(1) });
+        } else {
+          await setDoc(statsRef, { count: 12401 });
+          setTargetVisitors(12401);
+        }
+      } catch (err) {
+        console.error("Stats error:", err);
+        setTargetVisitors(12400); // fallback
+      }
+    };
+    initVisitors();
+  }, []);
+
+  const { count: visitorsCount } = useAnimatedCounter(targetVisitors);
   const { count: projectsCount } = useAnimatedCounter(10);
   const { count: studentsCount } = useAnimatedCounter(30);
 

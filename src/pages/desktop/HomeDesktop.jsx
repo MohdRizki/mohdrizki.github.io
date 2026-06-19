@@ -110,8 +110,33 @@ export default function Home() {
   const [apps, setApps] = useState(fallbackApps);
   const [materials, setMaterials] = useState(fallbackMaterials);
 
+  const [targetVisitors, setTargetVisitors] = useState(0); // 0 ensures it waits for fetch
+
+  useEffect(() => {
+    const initVisitors = async () => {
+      try {
+        // We use dynamic import for firestore methods to avoid cluttering top imports
+        const { doc, getDoc, setDoc, updateDoc, increment } = await import('firebase/firestore');
+        const statsRef = doc(db, 'stats', 'visitors');
+        const docSnap = await getDoc(statsRef);
+        if (docSnap.exists()) {
+          const currentCount = docSnap.data().count || 12400;
+          setTargetVisitors(currentCount + 1);
+          await updateDoc(statsRef, { count: increment(1) });
+        } else {
+          await setDoc(statsRef, { count: 12401 });
+          setTargetVisitors(12401);
+        }
+      } catch (err) {
+        console.error("Stats error:", err);
+        setTargetVisitors(12400); // fallback
+      }
+    };
+    initVisitors();
+  }, []);
+
   // Animated stats
-  const { count: visitorsCount, targetRef: visitorsRef } = useAnimatedCounter(12400);
+  const { count: visitorsCount, targetRef: visitorsRef } = useAnimatedCounter(targetVisitors);
   const { count: projectsCount, targetRef: projectsRef } = useAnimatedCounter(10);
   const { count: studentsCount, targetRef: studentsRef } = useAnimatedCounter(30);
 
