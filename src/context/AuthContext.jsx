@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { signInAnonymously, signOut } from 'firebase/auth';
 
 const AuthContext = createContext();
 
@@ -16,6 +17,9 @@ export function AuthProvider({ children }) {
     // Check local storage for persistent login
     const isAuth = localStorage.getItem('isAdminAuth') === 'true';
     setIsAdminAuth(isAuth);
+    if (isAuth) {
+      signInAnonymously(auth).catch(console.error);
+    }
     setLoading(false);
   }, []);
 
@@ -25,6 +29,7 @@ export function AuthProvider({ children }) {
       if (inputUser === 'setup_admin' && inputPin) {
         localStorage.setItem('isAdminAuth', 'true');
         setIsAdminAuth(true);
+        await signInAnonymously(auth);
         return { success: true };
       }
 
@@ -36,6 +41,7 @@ export function AuthProvider({ children }) {
         if (data.username === inputUser && data.pin === inputPin) {
           localStorage.setItem('isAdminAuth', 'true');
           setIsAdminAuth(true);
+          await signInAnonymously(auth);
           return { success: true };
         } else {
           return { success: false, error: 'Username atau PIN salah.' };
@@ -45,6 +51,7 @@ export function AuthProvider({ children }) {
         if (inputUser === 'admin' && inputPin === '123456') {
           localStorage.setItem('isAdminAuth', 'true');
           setIsAdminAuth(true);
+          await signInAnonymously(auth);
           return { success: true };
         }
         return { success: false, error: 'Pengaturan Admin belum dibuat di Firestore.' };
@@ -58,6 +65,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('isAdminAuth');
     setIsAdminAuth(false);
+    signOut(auth).catch(console.error);
   };
 
   const value = {
