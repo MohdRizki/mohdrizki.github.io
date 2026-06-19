@@ -158,7 +158,7 @@ export default function Materials() {
                       {/* Colored accent strip at top */}
                       <div className={`${accent.gradient} h-2.5 w-full rounded-t-[9px]`}></div>
                       
-                      <div className="flex flex-col flex-1 p-3 pt-2">
+                      <div className="flex flex-col flex-1 min-h-0 p-3 pt-2">
                         {/* Illustration */}
                         <div className={`flex-1 min-h-0 border-[2.5px] border-retro-dark rounded-xl overflow-hidden ${illustrationBg.bg} relative`}>
                           {item.img ? (
