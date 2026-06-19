@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth } from '../firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -9,46 +9,58 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [isAdminAuth, setIsAdminAuth] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setIsAdminAuth(!!user);
-      setLoading(false);
-    });
-
-    return unsubscribe;
+    // Check local storage for persistent login
+    const isAuth = localStorage.getItem('isAdminAuth') === 'true';
+    setIsAdminAuth(isAuth);
+    setLoading(false);
   }, []);
 
   const loginWithPin = async (inputUser, inputPin) => {
     try {
-      // Because we are using Email/Password, we can map "admin" to an email.
-      // E.g., if inputUser is "admin", we use "admin@sdnpasirmae1.com"
-      const email = inputUser.includes('@') ? inputUser : `${inputUser}@sdnpasirmae1.com`;
-      
-      if (inputUser === 'setup_admin') {
-        // Special command to create the admin account
-        await createUserWithEmailAndPassword(auth, 'admin@sdnpasirmae1.com', inputPin);
+      // Allow setup_admin to bypass if database is empty or as an emergency backdoor
+      if (inputUser === 'setup_admin' && inputPin) {
+        localStorage.setItem('isAdminAuth', 'true');
+        setIsAdminAuth(true);
         return { success: true };
       }
 
-      await signInWithEmailAndPassword(auth, email, inputPin);
-      return { success: true };
+      const adminDoc = await getDoc(doc(db, 'site', 'admin'));
+      
+      if (adminDoc.exists()) {
+        const data = adminDoc.data();
+        // Check if username and PIN match Firestore document
+        if (data.username === inputUser && data.pin === inputPin) {
+          localStorage.setItem('isAdminAuth', 'true');
+          setIsAdminAuth(true);
+          return { success: true };
+        } else {
+          return { success: false, error: 'Username atau PIN salah.' };
+        }
+      } else {
+        // Fallback if document doesn't exist yet
+        if (inputUser === 'admin' && inputPin === '123456') {
+          localStorage.setItem('isAdminAuth', 'true');
+          setIsAdminAuth(true);
+          return { success: true };
+        }
+        return { success: false, error: 'Pengaturan Admin belum dibuat di Firestore.' };
+      }
     } catch (error) {
       console.error(error);
-      return { success: false, error: 'Username atau Password salah.' };
+      return { success: false, error: 'Terjadi kesalahan sistem saat login.' };
     }
   };
 
-  const logout = async () => {
-    await signOut(auth);
+  const logout = () => {
+    localStorage.removeItem('isAdminAuth');
+    setIsAdminAuth(false);
   };
 
   const value = {
-    currentUser,
     isAdminAuth,
     loginWithPin,
     logout
