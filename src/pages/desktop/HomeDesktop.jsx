@@ -102,7 +102,7 @@ export default function Home() {
         const statsRef = doc(db, 'stats', 'visitors');
         const docSnap = await getDoc(statsRef);
         if (docSnap.exists()) {
-          const currentCount = docSnap.data().count || 12400;
+          const currentCount = docSnap.data().count ?? 12400;
           setTargetVisitors(currentCount + 1);
           await updateDoc(statsRef, { count: increment(1) });
         } else {
