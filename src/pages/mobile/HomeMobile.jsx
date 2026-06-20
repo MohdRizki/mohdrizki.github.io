@@ -79,13 +79,22 @@ export default function HomeMobile() {
         const { doc, getDoc, setDoc, updateDoc, increment } = await import('firebase/firestore');
         const statsRef = doc(db, 'stats', 'visitors');
         const docSnap = await getDoc(statsRef);
+        const today = new Date().toDateString();
+        const lastVisit = localStorage.getItem('lastVisitDate');
+
         if (docSnap.exists()) {
           const currentCount = docSnap.data().count ?? 12400;
-          setTargetVisitors(currentCount + 1);
-          await updateDoc(statsRef, { count: increment(1) });
+          if (lastVisit !== today) {
+            setTargetVisitors(currentCount + 1);
+            await updateDoc(statsRef, { count: increment(1) });
+            localStorage.setItem('lastVisitDate', today);
+          } else {
+            setTargetVisitors(currentCount);
+          }
         } else {
-          await setDoc(statsRef, { count: 12401 });
-          setTargetVisitors(12401);
+          await setDoc(statsRef, { count: 1 });
+          setTargetVisitors(1);
+          localStorage.setItem('lastVisitDate', today);
         }
       } catch (err) {
         console.error("Stats error:", err);
