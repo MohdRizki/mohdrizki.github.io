@@ -24,6 +24,16 @@ export default function Materials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
 
+  const handleItemClick = async (item) => {
+    try {
+      const { doc, updateDoc, increment } = await import('firebase/firestore');
+      const itemRef = doc(db, 'materials', item.id);
+      await updateDoc(itemRef, { views: increment(1) });
+    } catch (err) {
+      console.error("Failed to increment views:", err);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -184,7 +194,7 @@ export default function Materials() {
                           <p className="text-[11px] text-retro-dark/55 mt-1 line-clamp-2 leading-relaxed">{item.desc}</p>
                           
                           <div className="mt-auto pt-2 flex items-center justify-end">
-                            <motion.a 
+                            <motion.a onClick={() => handleItemClick(item)} 
                               href={item.link || "#"} target="_blank" rel="noreferrer" 
                               whileHover={{ y: -2, scale: 1.1 }}
                               className={`h-7 rounded-full ${accent.bg} border-[2px] border-retro-dark flex items-center justify-center shadow-lvl-1 hover:shadow-lvl-2 transition-all text-retro-dark px-3 gap-1.5 text-[10px] font-bold font-heading`}

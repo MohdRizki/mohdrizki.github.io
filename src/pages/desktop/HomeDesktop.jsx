@@ -89,8 +89,13 @@ const materialAccents = [
 
 export default function Home() {
   const itemVariants = useContext(StaggerContext);
-  const [apps, setApps] = useState([]);
-  const [materials, setMaterials] = useState([]);
+  const [loadingApps, setLoadingApps] = useState(true);
+  const [newestApps, setNewestApps] = useState([]);
+  const [popularApps, setPopularApps] = useState([]);
+  
+  const [loadingMaterials, setLoadingMaterials] = useState(true);
+  const [newestMaterials, setNewestMaterials] = useState([]);
+  const [popularMaterials, setPopularMaterials] = useState([]);
 
   const [targetVisitors, setTargetVisitors] = useState(0); // 0 ensures it waits for fetch
 
@@ -126,6 +131,16 @@ export default function Home() {
     initVisitors();
   }, []);
 
+  const handleItemClick = async (item, collectionName) => {
+    try {
+      const { doc, updateDoc, increment } = await import('firebase/firestore');
+      const itemRef = doc(db, collectionName, item.id);
+      await updateDoc(itemRef, { views: increment(1) });
+    } catch (err) {
+      console.error("Failed to increment views:", err);
+    }
+  };
+
   // Animated stats
   const { count: visitorsCount, targetRef: visitorsRef } = useAnimatedCounter(targetVisitors);
   const { count: projectsCount, targetRef: projectsRef } = useAnimatedCounter(10);
@@ -135,24 +150,34 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const qApps = query(collection(db, 'apps'), orderBy('order', 'asc'), limit(2));
-        const snapApps = await getDocs(qApps);
+        const snapApps = await getDocs(query(collection(db, 'apps')));
         if (!snapApps.empty) {
           const data = [];
           snapApps.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-          setApps(data);
+          
+          const newest = [...data].sort((a,b) => b.order - a.order).slice(0, 2);
+          const popular = [...data].sort((a,b) => (b.views || 0) - (a.views || 0)).slice(0, 2);
+          
+          setNewestApps(newest);
+          setPopularApps(popular);
         }
       } catch (e) { console.error("Failed to fetch apps"); }
+      finally { setLoadingApps(false); }
 
       try {
-        const qMaterials = query(collection(db, 'materials'), orderBy('order', 'asc'), limit(3));
-        const snapMaterials = await getDocs(qMaterials);
+        const snapMaterials = await getDocs(query(collection(db, 'materials')));
         if (!snapMaterials.empty) {
           const data = [];
           snapMaterials.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-          setMaterials(data);
+          
+          const newest = [...data].sort((a,b) => b.order - a.order).slice(0, 3);
+          const popular = [...data].sort((a,b) => (b.views || 0) - (a.views || 0)).slice(0, 3);
+          
+          setNewestMaterials(newest);
+          setPopularMaterials(popular);
         }
       } catch (e) { console.error("Failed to fetch materials"); }
+      finally { setLoadingMaterials(false); }
     };
     fetchData();
   }, []);
@@ -277,168 +302,178 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══ APLIKASI POPULER — NEW CARD DESIGN ═══ */}
-        {apps.length > 0 && (
+        {/* ═══ APLIKASI — NEW CARD DESIGN ═══ */}
+        {(loadingApps || newestApps.length > 0) && (
         <RevealSection className="section-layered">
           <div className="section-bg">
             <div className="absolute top-0 right-0 w-40 h-40 rounded-full opacity-[0.05]" style={{ background: 'radial-gradient(circle, #FFD56B, transparent 70%)' }}></div>
           </div>
-          <div className="section-content">
-            <SectionHeader 
-              title="Aplikasi Populer" 
-              subtitle="Media ajar interaktif untuk siswa SD" 
-              link="/aplikasi"
-              icon={<Rocket weight="fill" size={18} />}
-              accentColor="bg-retro-yellow"
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {apps.map((app, i) => {
-                const accent = appAccents[i % appAccents.length];
-                
-                const CardContent = (
-                  <>
-                    <div className="flex flex-col h-full">
-                      {/* Top colored band */}
-                      <div className={`${accent.gradient} h-3 w-full rounded-t-[9px]`}></div>
+          <div className="section-content flex flex-col gap-10">
+            {[
+              { title: "Aplikasi Terbaru", subtitle: "Media ajar interaktif untuk siswa SD", data: newestApps, isPopular: false, link: "/aplikasi" },
+              { title: "Aplikasi Terpopuler", subtitle: "Aplikasi yang paling sering dikunjungi", data: popularApps, isPopular: true, link: undefined }
+            ].map((section, idx) => (
+              <div key={idx}>
+                <SectionHeader 
+                  title={section.title} 
+                  subtitle={section.subtitle} 
+                  link={section.link}
+                  icon={<Rocket weight="fill" size={18} />}
+                  accentColor={section.isPopular ? "bg-retro-pink" : "bg-retro-yellow"}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {loadingApps ? (
+                    <>
+                      <div className="retro-card p-0 h-[300px] bg-retro-grey animate-pulse"></div>
+                      <div className="retro-card p-0 h-[300px] bg-retro-grey animate-pulse"></div>
+                    </>
+                  ) : section.data.map((app, i) => {
+                    const accent = appAccents[i % appAccents.length];
                     
-                    <div className="flex flex-col flex-1 min-h-0 p-4 pt-3">
-                      {/* Illustration */}
-                      <div className={`flex-1 min-h-0 border-[2.5px] border-retro-dark rounded-xl overflow-hidden ${accent.illBg} relative`}>
-                        {app.img ? (
-                          <img src={app.img} alt={app.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center p-3">
-                            <AutoIllustration name={app.name} category={app.category} />
+                    const CardContent = (
+                      <>
+                        <div className="flex flex-col h-full">
+                          <div className={`${accent.gradient} h-3 w-full rounded-t-[9px]`}></div>
+                        <div className="flex flex-col flex-1 min-h-0 p-4 pt-3">
+                          <div className={`flex-1 min-h-0 border-[2.5px] border-retro-dark rounded-xl overflow-hidden ${accent.illBg} relative`}>
+                            {app.img ? (
+                              <img src={app.img} alt={app.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center p-3">
+                                <AutoIllustration name={app.name} category={app.category} />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-40 pointer-events-none"></div>
+                            {app.badge && (
+                              <div className="absolute top-2 right-2">
+                                <span className={`inline-block ${accent.bg} border-[2px] border-retro-dark rounded-full px-2.5 py-0.5 text-[10px] font-bold shadow-lvl-1`}>
+                                  {app.badge}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-40 pointer-events-none"></div>
-                        
-                        {app.badge && (
-                          <div className="absolute top-2 right-2">
-                            <span className={`inline-block ${accent.bg} border-[2px] border-retro-dark rounded-full px-2.5 py-0.5 text-[10px] font-bold shadow-lvl-1`}>
-                              {app.badge}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Text */}
-                      <div className="pt-3 flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-heading text-base font-bold text-retro-dark leading-tight line-clamp-1">{app.name}</h3>
-                          <p className="text-[11px] text-retro-dark/55 mt-1 line-clamp-2 leading-relaxed">{app.desc}</p>
-                          <div className="mt-2">
-                            <span className={`inline-block ${accent.bg} border-[1.5px] border-retro-dark rounded-full px-2.5 py-0.5 text-[10px] font-bold font-heading shadow-lvl-1`}>
-                              {app.category || 'Aplikasi'}
-                            </span>
+                          <div className="pt-3 flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-heading text-base font-bold text-retro-dark leading-tight line-clamp-1">{app.name}</h3>
+                              <p className="text-[11px] text-retro-dark/55 mt-1 line-clamp-2 leading-relaxed">{app.desc}</p>
+                              <div className="mt-2">
+                                <span className={`inline-block ${accent.bg} border-[1.5px] border-retro-dark rounded-full px-2.5 py-0.5 text-[10px] font-bold font-heading shadow-lvl-1`}>
+                                  {app.category || 'Aplikasi'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className={`flex-shrink-0 w-9 h-9 rounded-full ${accent.bg} retro-border flex items-center justify-center shadow-lvl-1 group-hover:shadow-lvl-2 group-hover:scale-110 transition-all mt-1`}>
+                              <ArrowUpRight weight="bold" size={16} />
+                            </div>
                           </div>
                         </div>
-                        <div className={`flex-shrink-0 w-9 h-9 rounded-full ${accent.bg} retro-border flex items-center justify-center shadow-lvl-1 group-hover:shadow-lvl-2 group-hover:scale-110 transition-all mt-1`}>
-                          <ArrowUpRight weight="bold" size={16} />
                         </div>
-                      </div>
-                    </div>
-                    </div>
-                    
-                    {/* Floating Emoji Badge */}
-                    <div className="absolute -top-4 right-4 w-9 h-9 rounded-full bg-retro-white retro-border flex items-center justify-center text-base pb-[2px] shadow-lvl-1 z-20">
-                      {accent.emoji}
-                    </div>
-                  </>
-                );
+                        <div className="absolute -top-4 right-4 w-9 h-9 rounded-full bg-retro-white retro-border flex items-center justify-center text-base pb-[2px] shadow-lvl-1 z-20">
+                          {accent.emoji}
+                        </div>
+                      </>
+                    );
 
-                const cardClass = "retro-card p-0 h-[300px] bg-retro-white shadow-lvl-2 hover:shadow-lvl-3 transition-all group block overflow-visible";
-                
-                return app.link ? (
-                  <motion.a 
-                    href={app.link} target="_blank" rel="noopener noreferrer" 
-                    key={app.id} variants={itemVariants} custom={i + 6} 
-                    whileHover={{ y: -5 }}
-                    className={cardClass}
-                  >
-                    {CardContent}
-                  </motion.a>
-                ) : (
-                  <motion.div key={app.id} variants={itemVariants} custom={i + 6} whileHover={{ y: -5 }}>
-                    <Link to="/aplikasi" className={cardClass}>
-                      {CardContent}
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </div>
+                    const cardClass = "retro-card p-0 h-[300px] bg-retro-white shadow-lvl-2 hover:shadow-lvl-3 transition-all group block overflow-visible";
+                    
+                    return app.link ? (
+                      <motion.a 
+                        href={app.link} target="_blank" rel="noopener noreferrer" 
+                        key={app.id} variants={itemVariants} custom={i + 6} 
+                        whileHover={{ y: -5 }} onClick={() => handleItemClick(app, 'apps')}
+                        className={cardClass}
+                      >
+                        {CardContent}
+                      </motion.a>
+                    ) : (
+                      <motion.div key={app.id} variants={itemVariants} custom={i + 6} whileHover={{ y: -5 }}>
+                        <Link to="/aplikasi" className={cardClass} onClick={() => handleItemClick(app, 'apps')}>
+                          {CardContent}
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </RevealSection>
         )}
 
         {/* ═══ MATERI EDUKASI — NEW CARD DESIGN ═══ */}
-        {materials.length > 0 && (
+        {(loadingMaterials || newestMaterials.length > 0) && (
         <RevealSection className="section-layered">
           <div className="section-bg">
             <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-[0.05]" style={{ background: 'radial-gradient(circle, #B8CCE2, transparent 70%)' }}></div>
           </div>
-          <div className="section-content">
-            <SectionHeader 
-              title="Materi Edukasi" 
-              subtitle="Bahan ajar ramah anak berbasis Kurikulum Merdeka" 
-              link="/materi"
-              icon={<BookOpenText weight="fill" size={18} />}
-              accentColor="bg-retro-mint"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-5">
-              {materials.map((item, i) => {
-                const accent = materialAccents[i % materialAccents.length];
-                
-                const CardContent = (
-                  <>
-                    <div className="flex flex-col h-full">
-                      {/* Top colored band */}
-                      <div className={`${accent.gradient} h-2.5 w-full rounded-t-[9px]`}></div>
+          <div className="section-content flex flex-col gap-10">
+            {[
+              { title: "Materi Terbaru", subtitle: "Bahan ajar ramah anak berbasis Kurikulum Merdeka", data: newestMaterials, isPopular: false, link: "/materi" },
+              { title: "Materi Terpopuler", subtitle: "Materi yang paling banyak dibaca", data: popularMaterials, isPopular: true, link: undefined }
+            ].map((section, idx) => (
+              <div key={idx}>
+                <SectionHeader 
+                  title={section.title} 
+                  subtitle={section.subtitle} 
+                  link={section.link}
+                  icon={<BookOpenText weight="fill" size={18} />}
+                  accentColor={section.isPopular ? "bg-retro-lavender" : "bg-retro-mint"}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-5">
+                  {loadingMaterials ? (
+                    <>
+                      <div className="retro-card p-0 h-[240px] bg-retro-grey animate-pulse"></div>
+                      <div className="retro-card p-0 h-[240px] bg-retro-grey animate-pulse"></div>
+                      <div className="retro-card p-0 h-[240px] bg-retro-grey animate-pulse hidden md:block"></div>
+                    </>
+                  ) : section.data.map((item, i) => {
+                    const accent = materialAccents[i % materialAccents.length];
                     
-                    <div className="flex flex-col flex-1 min-h-0 p-3 pt-2">
-                      {/* Illustration */}
-                      <div className={`flex-1 min-h-0 border-[2.5px] border-retro-dark rounded-xl overflow-hidden ${accent.illBg} relative`}>
-                        {item.img ? (
-                          <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center p-3">
-                            <AutoIllustration name={item.title} category={item.category || 'edukasi'} />
+                    const CardContent = (
+                      <>
+                        <div className="flex flex-col h-full">
+                          <div className={`${accent.gradient} h-2.5 w-full rounded-t-[9px]`}></div>
+                        <div className="flex flex-col flex-1 min-h-0 p-3 pt-2">
+                          <div className={`flex-1 min-h-0 border-[2.5px] border-retro-dark rounded-xl overflow-hidden ${accent.illBg} relative`}>
+                            {item.img ? (
+                              <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center p-3">
+                                <AutoIllustration name={item.title} category={item.category || 'edukasi'} />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-40 pointer-events-none"></div>
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-40 pointer-events-none"></div>
-                      </div>
-                      
-                      {/* Text */}
-                      <div className="pt-2 px-0.5">
-                        <h3 className="font-heading font-bold text-[13px] leading-tight text-retro-dark line-clamp-2">{item.title}</h3>
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <div className={`w-4 h-4 rounded-full ${accent.gradient} border-[1.5px] border-retro-dark flex-shrink-0`}></div>
-                          <span className="text-[10px] font-bold text-retro-dark/45 line-clamp-1">{item.author || 'Mohamad Rizki'}</span>
+                          <div className="pt-2 px-0.5">
+                            <h3 className="font-heading font-bold text-[13px] leading-tight text-retro-dark line-clamp-2">{item.title}</h3>
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <div className={`w-4 h-4 rounded-full ${accent.gradient} border-[1.5px] border-retro-dark flex-shrink-0`}></div>
+                              <span className="text-[10px] font-bold text-retro-dark/45 line-clamp-1">{item.author || 'Mohamad Rizki'}</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    </div>
-                    
-                    {/* Floating Emoji Badge */}
-                    <div className="absolute -top-4 right-4 w-9 h-9 rounded-full bg-retro-white retro-border flex items-center justify-center text-base pb-[2px] shadow-lvl-1 z-20">
-                      {accent.emoji}
-                    </div>
-                  </>
-                );
+                        </div>
+                        <div className="absolute -top-4 right-4 w-9 h-9 rounded-full bg-retro-white retro-border flex items-center justify-center text-base pb-[2px] shadow-lvl-1 z-20">
+                          {accent.emoji}
+                        </div>
+                      </>
+                    );
 
-                return item.link ? (
-                  <motion.a href={item.link} target="_blank" rel="noopener noreferrer" key={item.id} variants={itemVariants} custom={i + 8} whileHover={{ y: -4 }} className="retro-card p-0 h-[240px] bg-retro-white relative group block shadow-lvl-1 hover:shadow-lvl-2 transition-all overflow-visible">
-                    {CardContent}
-                  </motion.a>
-                ) : (
-                  <motion.div key={item.id} variants={itemVariants} custom={i + 8} whileHover={{ y: -4 }}>
-                    <Link to="/materi" className="retro-card p-0 h-[240px] bg-retro-white relative group block shadow-lvl-1 hover:shadow-lvl-2 transition-all overflow-visible">
-                      {CardContent}
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </div>
+                    return item.link ? (
+                      <motion.a href={item.link} target="_blank" rel="noopener noreferrer" key={item.id} variants={itemVariants} custom={i + 8} whileHover={{ y: -4 }} onClick={() => handleItemClick(item, 'materials')} className="retro-card p-0 h-[240px] bg-retro-white relative group block shadow-lvl-1 hover:shadow-lvl-2 transition-all overflow-visible">
+                        {CardContent}
+                      </motion.a>
+                    ) : (
+                      <motion.div key={item.id} variants={itemVariants} custom={i + 8} whileHover={{ y: -4 }}>
+                        <Link to="/materi" onClick={() => handleItemClick(item, 'materials')} className="retro-card p-0 h-[240px] bg-retro-white relative group block shadow-lvl-1 hover:shadow-lvl-2 transition-all overflow-visible">
+                          {CardContent}
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </RevealSection>
         )}

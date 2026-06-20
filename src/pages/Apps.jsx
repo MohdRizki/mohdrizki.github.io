@@ -25,6 +25,16 @@ export default function Apps() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
 
+  const handleItemClick = async (item) => {
+    try {
+      const { doc, updateDoc, increment } = await import('firebase/firestore');
+      const itemRef = doc(db, 'apps', item.id);
+      await updateDoc(itemRef, { views: increment(1) });
+    } catch (err) {
+      console.error("Failed to increment views:", err);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -193,7 +203,7 @@ export default function Apps() {
         const cardClass = `retro-card p-0 h-[290px] bg-retro-white shadow-lvl-2 hover:shadow-lvl-3 transition-all group block overflow-hidden`;
 
         return app.link ? (
-        <motion.a
+        <motion.a onClick={() => handleItemClick(app)}
           href={app.link} target="_blank" rel="noopener noreferrer"
           variants={itemVariants} custom={i + 2} key={app.id}
           layout

@@ -68,8 +68,13 @@ const materialAccents = [
 
 /* ─── Fallback static data ──── */
 export default function HomeMobile() {
-  const [apps, setApps] = useState([]);
-  const [materials, setMaterials] = useState([]);
+  const [loadingApps, setLoadingApps] = useState(true);
+  const [newestApps, setNewestApps] = useState([]);
+  const [popularApps, setPopularApps] = useState([]);
+  
+  const [loadingMaterials, setLoadingMaterials] = useState(true);
+  const [newestMaterials, setNewestMaterials] = useState([]);
+  const [popularMaterials, setPopularMaterials] = useState([]);
 
   const [targetVisitors, setTargetVisitors] = useState(0); // 0 ensures it waits for fetch
 
@@ -104,6 +109,16 @@ export default function HomeMobile() {
     initVisitors();
   }, []);
 
+  const handleItemClick = async (item, collectionName) => {
+    try {
+      const { doc, updateDoc, increment } = await import('firebase/firestore');
+      const itemRef = doc(db, collectionName, item.id);
+      await updateDoc(itemRef, { views: increment(1) });
+    } catch (err) {
+      console.error("Failed to increment views:", err);
+    }
+  };
+
   const { count: visitorsCount } = useAnimatedCounter(targetVisitors);
   const { count: projectsCount } = useAnimatedCounter(10);
   const { count: studentsCount } = useAnimatedCounter(30);
@@ -111,24 +126,34 @@ export default function HomeMobile() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const qApps = query(collection(db, 'apps'), orderBy('order', 'asc'), limit(2));
-        const snapApps = await getDocs(qApps);
+        const snapApps = await getDocs(query(collection(db, 'apps')));
         if (!snapApps.empty) {
           const data = [];
           snapApps.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-          setApps(data);
+          
+          const newest = [...data].sort((a,b) => b.order - a.order).slice(0, 2);
+          const popular = [...data].sort((a,b) => (b.views || 0) - (a.views || 0)).slice(0, 2);
+          
+          setNewestApps(newest);
+          setPopularApps(popular);
         }
       } catch (e) { console.error("Failed to fetch apps"); }
+      finally { setLoadingApps(false); }
 
       try {
-        const qMaterials = query(collection(db, 'materials'), orderBy('order', 'asc'), limit(2));
-        const snapMaterials = await getDocs(qMaterials);
+        const snapMaterials = await getDocs(query(collection(db, 'materials')));
         if (!snapMaterials.empty) {
           const data = [];
           snapMaterials.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-          setMaterials(data);
+          
+          const newest = [...data].sort((a,b) => b.order - a.order).slice(0, 2);
+          const popular = [...data].sort((a,b) => (b.views || 0) - (a.views || 0)).slice(0, 2);
+          
+          setNewestMaterials(newest);
+          setPopularMaterials(popular);
         }
       } catch (e) { console.error("Failed to fetch materials"); }
+      finally { setLoadingMaterials(false); }
     };
     fetchData();
   }, []);
@@ -205,61 +230,105 @@ export default function HomeMobile() {
           </div>
         </div>
 
-        {/* ═══ APLIKASI POPULER ═══ */}
-        {apps.length > 0 && (
-        <div>
-          <SectionHeader title="Aplikasi Populer" subtitle="Media ajar interaktif SD" link="/aplikasi" icon={<Rocket weight="fill" size={14} />} accentColor="bg-retro-yellow" />
-          <div className="flex flex-col gap-4">
-            {apps.map((app, i) => {
-              const accent = appAccents[i % appAccents.length];
-              return (
-                <Link to="/aplikasi" key={app.id} className="retro-card p-0 bg-retro-white rounded-2xl border-[2px] border-retro-dark shadow-lvl-1 overflow-hidden flex h-[100px]">
-                  <div className={`w-[100px] h-full ${accent.illBg} border-r-[2px] border-retro-dark relative flex-shrink-0 p-1`}>
-                    {app.img ? (
-                       <img src={app.img} alt={app.name} className="w-full h-full object-cover rounded-lg border-[1.5px] border-retro-dark" />
-                    ) : (
-                       <AutoIllustration name={app.name} category={app.category} />
-                    )}
-                  </div>
-                  <div className="p-3 flex-1 flex flex-col justify-center min-w-0">
-                    <h3 className="font-heading text-sm font-bold text-retro-dark leading-tight line-clamp-1">{app.name}</h3>
-                    <p className="text-[10px] text-retro-dark/60 mt-1 line-clamp-2 leading-tight">{app.desc}</p>
-                    <div className="mt-auto pt-1">
-                      <span className={`inline-block ${accent.bg} border-[1px] border-retro-dark rounded-full px-2 py-0.5 text-[8px] font-bold`}>
-                        {app.category || 'Aplikasi'}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+        {/* ═══ APLIKASI ═══ */}
+        {(loadingApps || newestApps.length > 0) && (
+        <div className="flex flex-col gap-6">
+          {[
+            { title: "Aplikasi Terbaru", subtitle: "Media ajar interaktif SD", data: newestApps, isPopular: false, link: "/aplikasi" },
+            { title: "Aplikasi Terpopuler", subtitle: "Paling sering dikunjungi", data: popularApps, isPopular: true, link: undefined }
+          ].map((section, idx) => (
+            <div key={idx}>
+              <SectionHeader title={section.title} subtitle={section.subtitle} link={section.link} icon={<Rocket weight="fill" size={14} />} accentColor={section.isPopular ? "bg-retro-pink" : "bg-retro-yellow"} />
+              <div className="flex flex-col gap-4">
+                {loadingApps ? (
+                  <>
+                    <div className="retro-card h-[100px] bg-retro-grey animate-pulse rounded-2xl"></div>
+                    <div className="retro-card h-[100px] bg-retro-grey animate-pulse rounded-2xl"></div>
+                  </>
+                ) : section.data.map((app, i) => {
+                  const accent = appAccents[i % appAccents.length];
+                  const CardContent = (
+                    <>
+                      <div className={`w-[100px] h-full ${accent.illBg} border-r-[2px] border-retro-dark relative flex-shrink-0 p-1`}>
+                        {app.img ? (
+                           <img src={app.img} alt={app.name} className="w-full h-full object-cover rounded-lg border-[1.5px] border-retro-dark" />
+                        ) : (
+                           <AutoIllustration name={app.name} category={app.category} />
+                        )}
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col justify-center min-w-0">
+                        <h3 className="font-heading text-sm font-bold text-retro-dark leading-tight line-clamp-1">{app.name}</h3>
+                        <p className="text-[10px] text-retro-dark/60 mt-1 line-clamp-2 leading-tight">{app.desc}</p>
+                        <div className="mt-auto pt-1">
+                          <span className={`inline-block ${accent.bg} border-[1px] border-retro-dark rounded-full px-2 py-0.5 text-[8px] font-bold`}>
+                            {app.category || 'Aplikasi'}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+
+                  return app.link ? (
+                    <a href={app.link} target="_blank" rel="noopener noreferrer" key={app.id} onClick={() => handleItemClick(app, 'apps')} className="retro-card p-0 bg-retro-white rounded-2xl border-[2px] border-retro-dark shadow-lvl-1 overflow-hidden flex h-[100px] active:scale-[0.98] transition-transform">
+                      {CardContent}
+                    </a>
+                  ) : (
+                    <Link to="/aplikasi" key={app.id} onClick={() => handleItemClick(app, 'apps')} className="retro-card p-0 bg-retro-white rounded-2xl border-[2px] border-retro-dark shadow-lvl-1 overflow-hidden flex h-[100px] active:scale-[0.98] transition-transform">
+                      {CardContent}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
         )}
 
         {/* ═══ MATERI EDUKASI ═══ */}
-        {materials.length > 0 && (
-        <div>
-          <SectionHeader title="Materi Edukasi" subtitle="Bahan ajar Kurikulum Merdeka" link="/materi" icon={<BookOpenText weight="fill" size={14} />} accentColor="bg-retro-mint" />
-          <div className="grid grid-cols-1 gap-4">
-            {materials.map((item, i) => {
-              const accent = materialAccents[i % materialAccents.length];
-              return (
-                <Link to="/materi" key={item.id} className="retro-card p-0 bg-retro-white rounded-2xl border-[2px] border-retro-dark shadow-lvl-1 overflow-hidden relative">
-                   <div className={`${accent.gradient} h-2 w-full border-b-[2px] border-retro-dark`}></div>
-                   <div className="p-3 flex gap-3 items-center">
-                     <div className={`w-14 h-14 rounded-lg border-[2px] border-retro-dark ${accent.illBg} overflow-hidden flex-shrink-0 p-0.5`}>
-                        {item.img ? <img src={item.img} className="w-full h-full object-cover rounded-md" /> : <AutoIllustration name={item.title} category="edukasi" />}
-                     </div>
-                     <div className="flex-1">
-                        <h3 className="font-heading font-bold text-sm leading-tight text-retro-dark line-clamp-2">{item.title}</h3>
-                        <span className="text-[10px] font-bold text-retro-dark/50 block mt-1">{item.author || 'M. Rizki'}</span>
-                     </div>
-                   </div>
-                </Link>
-              );
-            })}
-          </div>
+        {(loadingMaterials || newestMaterials.length > 0) && (
+        <div className="flex flex-col gap-6">
+          {[
+            { title: "Materi Terbaru", subtitle: "Bahan ajar Kurikulum Merdeka", data: newestMaterials, isPopular: false, link: "/materi" },
+            { title: "Materi Terpopuler", subtitle: "Paling banyak dibaca", data: popularMaterials, isPopular: true, link: undefined }
+          ].map((section, idx) => (
+            <div key={idx}>
+              <SectionHeader title={section.title} subtitle={section.subtitle} link={section.link} icon={<BookOpenText weight="fill" size={14} />} accentColor={section.isPopular ? "bg-retro-lavender" : "bg-retro-mint"} />
+              <div className="grid grid-cols-1 gap-4">
+                {loadingMaterials ? (
+                  <>
+                    <div className="retro-card h-[80px] bg-retro-grey animate-pulse rounded-2xl"></div>
+                    <div className="retro-card h-[80px] bg-retro-grey animate-pulse rounded-2xl"></div>
+                  </>
+                ) : section.data.map((item, i) => {
+                  const accent = materialAccents[i % materialAccents.length];
+                  const CardContent = (
+                    <>
+                       <div className={`${accent.gradient} h-2 w-full border-b-[2px] border-retro-dark`}></div>
+                       <div className="p-3 flex gap-3 items-center">
+                         <div className={`w-14 h-14 rounded-lg border-[2px] border-retro-dark ${accent.illBg} overflow-hidden flex-shrink-0 p-0.5`}>
+                            {item.img ? <img src={item.img} className="w-full h-full object-cover rounded-md" /> : <AutoIllustration name={item.title} category="edukasi" />}
+                         </div>
+                         <div className="flex-1">
+                            <h3 className="font-heading font-bold text-sm leading-tight text-retro-dark line-clamp-2">{item.title}</h3>
+                            <span className="text-[10px] font-bold text-retro-dark/50 block mt-1">{item.author || 'M. Rizki'}</span>
+                         </div>
+                       </div>
+                    </>
+                  );
+
+                  return item.link ? (
+                    <a href={item.link} target="_blank" rel="noopener noreferrer" key={item.id} onClick={() => handleItemClick(item, 'materials')} className="retro-card p-0 bg-retro-white rounded-2xl border-[2px] border-retro-dark shadow-lvl-1 overflow-hidden relative active:scale-[0.98] transition-transform">
+                      {CardContent}
+                    </a>
+                  ) : (
+                    <Link to="/materi" key={item.id} onClick={() => handleItemClick(item, 'materials')} className="retro-card p-0 bg-retro-white rounded-2xl border-[2px] border-retro-dark shadow-lvl-1 overflow-hidden relative active:scale-[0.98] transition-transform">
+                      {CardContent}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
         )}
 
