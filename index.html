@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id">
+<html lang="id" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,11 +11,11 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
-  <body>
+  <body class="min-h-full flex flex-col">
     <div class="bg-overlay"></div>
     <div class="bg-noise-global"></div>
     <img src="/logo.png" alt="Ornament" class="floating-logo-ornament" onerror="this.style.display='none'" />
-    <div id="root" class="min-h-screen flex flex-col"></div>
+    <div id="root" class="flex-1 flex flex-col w-full"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

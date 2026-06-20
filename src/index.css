@@ -42,7 +42,6 @@
     background-color: var(--color-retro-bg);
     color: var(--color-retro-dark);
     margin: 0;
-    min-height: calc(100dvh / 0.9);
     font-family: var(--font-body);
     font-size: 18px;
     position: relative;
@@ -58,12 +57,6 @@
     overflow-y: scroll; /* Force vertical scrollbar to prevent layout shift */
     cursor: url('/cursor.svg') 5 5, auto;
     transition: color 1s ease;
-  }
-
-  #root {
-    min-height: calc(100dvh / 0.9);
-    display: flex;
-    flex-direction: column;
   }
 
   /* ── Night Mode Overrides ── */
