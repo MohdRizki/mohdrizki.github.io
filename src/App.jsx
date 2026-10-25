@@ -49,6 +49,8 @@ import Gallery from './pages/Gallery';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
+import Artikel from './pages/Artikel';
+import ArtikelDetail from './pages/ArtikelDetail';
 
 // ═══ Snappy Page Transition ═══
 const containerVariants = {
@@ -237,6 +239,10 @@ function AnimatedRoutes() {
         <Route path="/aplikasi" element={<PageWrapper><Apps /></PageWrapper>} />
         <Route path="/materi" element={<PageWrapper><Materials /></PageWrapper>} />
         <Route path="/galeri" element={<PageWrapper><Gallery /></PageWrapper>} />
+
+        {/* Blog/Artikel */}
+        <Route path="/artikel" element={<PageWrapper><Artikel /></PageWrapper>} />
+        <Route path="/artikel/:slug" element={<PageWrapper><ArtikelDetail /></PageWrapper>} />
         
         {/* Auth & CMS */}
         <Route path="/login" element={<Login />} />
