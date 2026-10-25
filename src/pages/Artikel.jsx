@@ -37,13 +37,16 @@ function ArtikelCard({ artikel }) {
   return (
     <motion.div variants={itemVariants}>
       <Link to={`/artikel/${artikel.slug}`} className="block group">
-        <div className="glass retro-border rounded-xl p-5 h-full flex flex-col gap-3 transition-all duration-300 group-hover:shadow-lvl-2 group-hover:-translate-y-1">
+        <div
+          className="rounded-xl p-5 h-full flex flex-col gap-3 transition-all duration-300 group-hover:-translate-y-1 retro-border"
+          style={{ backgroundColor: 'rgba(255,248,236,0.92)', backdropFilter: 'blur(12px)' }}
+        >
           {/* Tags */}
           <div className="flex flex-wrap gap-2">
             {artikel.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="text-xs font-semibold px-2 py-0.5 rounded-full bg-retro-yellow/20 text-retro-yellow retro-border"
+                className="text-xs font-bold px-2 py-0.5 rounded-full border-2 border-retro-dark bg-retro-yellow text-retro-dark"
               >
                 {tag}
               </span>
@@ -51,17 +54,17 @@ function ArtikelCard({ artikel }) {
           </div>
 
           {/* Title */}
-          <h2 className="font-heading text-lg font-bold text-white group-hover:text-retro-yellow transition-colors leading-snug">
+          <h2 className="font-heading text-lg font-extrabold text-retro-dark group-hover:text-yellow-700 transition-colors leading-snug">
             {artikel.title}
           </h2>
 
           {/* Excerpt */}
-          <p className="text-sm text-white/60 leading-relaxed flex-1">
+          <p className="text-sm text-retro-dark/75 leading-relaxed flex-1">
             {artikel.excerpt}
           </p>
 
           {/* Meta */}
-          <div className="flex items-center gap-4 text-xs text-white/40 mt-auto pt-3 border-t border-white/10">
+          <div className="flex items-center gap-4 text-xs text-retro-dark/50 mt-auto pt-3 border-t border-retro-dark/15">
             <span className="flex items-center gap-1">
               <CalendarBlank size={13} />
               {formatDate(artikel.date)}
@@ -73,7 +76,7 @@ function ArtikelCard({ artikel }) {
           </div>
 
           {/* Read more */}
-          <div className="flex items-center gap-1 text-sm font-semibold text-retro-yellow group-hover:gap-2 transition-all">
+          <div className="flex items-center gap-1 text-sm font-bold text-yellow-700 group-hover:gap-2 transition-all">
             Baca selengkapnya <ArrowRight size={15} />
           </div>
         </div>
@@ -109,12 +112,12 @@ export default function Artikel() {
         className="mb-10"
       >
         <div className="flex items-center gap-3 mb-3">
-          <Newspaper size={32} weight="fill" className="text-retro-yellow" />
-          <h1 className="font-heading text-3xl font-extrabold text-white">
+          <Newspaper size={32} weight="fill" className="text-retro-dark" />
+          <h1 className="font-heading text-3xl font-extrabold text-retro-dark">
             Artikel
           </h1>
         </div>
-        <p className="text-white/60 text-sm max-w-xl">
+        <p className="text-retro-dark/65 text-sm max-w-xl font-medium">
           Kumpulan tulisan seputar teknologi, pendidikan, dan pengalaman belajar.
           Semoga bermanfaat!
         </p>
@@ -129,14 +132,15 @@ export default function Artikel() {
       >
         <MagnifyingGlass
           size={18}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-retro-dark/40"
         />
         <input
           type="text"
           placeholder="Cari artikel..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 rounded-lg glass retro-border text-sm text-white placeholder-white/30 bg-transparent focus:outline-none focus:border-retro-yellow transition-colors"
+          className="w-full pl-9 pr-4 py-2.5 rounded-lg retro-border text-sm text-retro-dark placeholder-retro-dark/35 focus:outline-none focus:border-yellow-600 transition-colors font-medium"
+          style={{ backgroundColor: 'rgba(255,248,236,0.92)' }}
         />
       </motion.div>
 
@@ -151,11 +155,12 @@ export default function Artikel() {
           <button
             key={tag}
             onClick={() => setActiveTag(tag)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full retro-border transition-all ${
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full retro-border transition-all ${
               activeTag === tag
                 ? 'bg-retro-yellow text-retro-dark shadow-lvl-1'
-                : 'glass text-white/70 hover:text-white'
+                : 'text-retro-dark/70 hover:text-retro-dark hover:bg-retro-yellow/40'
             }`}
+            style={activeTag !== tag ? { backgroundColor: 'rgba(255,248,236,0.82)' } : {}}
           >
             <Tag size={12} />
             {tag}
@@ -168,10 +173,10 @@ export default function Artikel() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center py-20 text-white/40"
+          className="text-center py-20 text-retro-dark/50"
         >
           <Newspaper size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-heading text-lg">Artikel tidak ditemukan.</p>
+          <p className="font-heading text-lg font-bold">Artikel tidak ditemukan.</p>
           <p className="text-sm mt-1">Coba kata kunci atau filter lain.</p>
         </motion.div>
       ) : (
