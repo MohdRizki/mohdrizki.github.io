@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { House, User, GridFour, Books, Image as ImageIcon, EnvelopeSimple, List, X } from '@phosphor-icons/react';
+import { House, User, GridFour, Books, Image as ImageIcon, EnvelopeSimple, List, X, Newspaper } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 export default function Navbar() {
@@ -14,6 +14,7 @@ export default function Navbar() {
     { path: '/aplikasi', label: 'Aplikasi', icon: <GridFour weight="fill" size={20} /> },
     { path: '/materi', label: 'Materi', icon: <Books weight="fill" size={20} /> },
     { path: '/galeri', label: 'Galeri', icon: <ImageIcon weight="fill" size={20} /> },
+    { path: '/artikel', label: 'Artikel', icon: <Newspaper weight="fill" size={20} /> },
   ];
 
   return (
@@ -39,7 +40,7 @@ export default function Navbar() {
             {/* Nav Links */}
             <div className="flex items-center gap-1 relative">
               {links.map((link) => {
-                const isActive = currentPath === link.path;
+                const isActive = currentPath === link.path || currentPath.startsWith(link.path + '/');
                 return (
                   <Link
                     key={link.path}
@@ -81,7 +82,7 @@ export default function Navbar() {
           <div className="glass retro-border rounded-2xl shadow-lvl-2 px-2">
             <div className="flex justify-between items-center h-16 relative">
             {links.map((link) => {
-              const isActive = currentPath === link.path;
+              const isActive = currentPath === link.path || currentPath.startsWith(link.path + '/');
               return (
                 <Link
                   key={link.path}
