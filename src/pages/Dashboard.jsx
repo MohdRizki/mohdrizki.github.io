@@ -25,7 +25,7 @@ function getDriveDirectLink(url) {
 
 export default function Dashboard() {
   const { logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('artikel');
+  const [activeTab, setActiveTab] = useState('profil');
   const [toastMsg, setToastMsg] = useState('');
 
   const showToast = (msg) => {
@@ -70,12 +70,12 @@ export default function Dashboard() {
       {/* Tabs */}
       <div className="border-b-[2.5px] border-retro-dark bg-retro-bg px-4 md:px-8">
           <div className="max-w-6xl mx-auto flex gap-2 overflow-x-auto no-scrollbar py-3">
-              <TabBtn active={activeTab === 'artikel'} onClick={() => setActiveTab('artikel')} icon={<Newspaper weight="bold" />} label="Artikel" />
               <TabBtn active={activeTab === 'profil'} onClick={() => setActiveTab('profil')} icon={<User weight="bold" />} label="Profil" />
               <TabBtn active={activeTab === 'aplikasi'} onClick={() => setActiveTab('aplikasi')} icon={<SquaresFour weight="bold" />} label="Aplikasi" />
               <TabBtn active={activeTab === 'materi'} onClick={() => setActiveTab('materi')} icon={<FileText weight="bold" />} label="Materi" />
               <TabBtn active={activeTab === 'galeri'} onClick={() => setActiveTab('galeri')} icon={<ImageIcon weight="bold" />} label="Galeri" />
               <TabBtn active={activeTab === 'pengaturan'} onClick={() => setActiveTab('pengaturan')} icon={<Gear weight="bold" />} label="Pengaturan" />
+              <TabBtn active={activeTab === 'artikel'} onClick={() => setActiveTab('artikel')} icon={<Newspaper weight="bold" />} label="Artikel" />
           </div>
       </div>
 
@@ -86,12 +86,12 @@ export default function Dashboard() {
                 key={activeTab}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}
               >
-                {activeTab === 'artikel' && <TabArtikel showToast={showToast} />}
                 {activeTab === 'profil' && <TabProfil showToast={showToast} />}
                 {activeTab === 'aplikasi' && <TabAplikasi showToast={showToast} />}
                 {activeTab === 'materi' && <TabMateri showToast={showToast} />}
                 {activeTab === 'galeri' && <TabGaleri showToast={showToast} />}
                 {activeTab === 'pengaturan' && <TabPengaturan showToast={showToast} />}
+                {activeTab === 'artikel' && <TabArtikel showToast={showToast} />}
               </motion.div>
             </AnimatePresence>
           </div>
